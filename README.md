@@ -1,4 +1,5 @@
-![资源 1小显示器](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/7459dd0e-ee52-4da5-8f00-d2d40dcaef36)<a name="readme-top"></a>
+<a name="readme-top"></a>
+![资源 1小显示器-svg](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/e36d75e0-2cba-4026-936e-1ba8aba9cc7b)
 
 <div align="center">
 
@@ -13,10 +14,10 @@
 同样我也喜欢绘画和设计，所以我非常佩服每一位画家，艺术家，在ai的时代，我希望自己能接收ai知识的同时，也要记住尊重关于每个画师的版权问题。
 我一直认为ai最好的方式应该是在购买版权的前提下，有序的完成ai的良性发展. 在学习comfyui的这段旅程中，我遇到了，几位可爱的小伙伴。
 
-并且他们格外的温暖，调皮，傻不拉几。但是他们是我认为最值得交流的朋友。
+并且他们格外的温暖，调皮，傻不拉几。虽然他们没有参与这个项目，但是有几位朋友帮忙做测试。
 第一张图片由"走走走"修改后的版本.
 
-![新建项目](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/29b55a1c-0444-470e-8a18-67b4a34ae107)
+![新建项目](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/de5d1b7c-f909-4a3d-892e-6f38c56e4e85)
 
 
 > **Warning**
@@ -31,27 +32,35 @@
 
 * `Ai Chatbox `: 这个就是悬浮按钮，可以点击展开功能模块
 
-![comfly编辑 (4)](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/9414867a-5ddd-4315-9e11-126e107efcff)
+![comfly编辑 (4)](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/ad5b4fde-2953-4706-a528-0d99ad8d62ee)
+
 
 
 * `Midjourney `:和各类大语言模型
 
-![comfly编辑 (5)](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/a4f78383-abce-4ecc-af9d-f99a4fcbb7a9)
+![comfly编辑 (5)](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/d8656f33-0ea7-4a10-beba-0a44886cf8f4)
+
 
 
 * `Midjourney `:的节点组，workflow：
 
-![image](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/d10a9e21-039d-42ac-a600-7951c81374f0)
+
+![ER%`0A514D7` 6C3WLQ6)BA](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/e8b559c6-bfd1-4dde-801e-8f49b4e1a897)
+
+
 
 > \[!IMPORTANT]\
 > 由于ai和 midjourney api本身是需要付费的，所以现在放在github上的是不包含这个模块的功能.
 > 
 > 目前上传的文档只有以下的Comfly Manager模块. 如果需要ai和midjourney这个功能模块，需要加QQ群或者微信
+> 
+> 或者点击链接：[Comfyui-Comfly 插件：ai chat和midjourney模型块完整版]( https://api.comfly.chat/ai/138/)
 
 # 🥵 Comfly的QQ群 / my wechat
-![Comfly 群聊二维码](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/1db71e5e-ee2f-4cdc-b075-7502a79ef7c0)
 
-![Comfly 群聊二维码 (1)](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/6ababf68-0e12-4fda-a1a8-acf8c487632d)
+![86601b471a343671e7240c74aa8e1fd](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/3e1c2d15-ba5b-4aa5-a76b-08f87e7c8e2c)
+
+![86601b471a343671e7240c74aa8e1fd](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/fdc2f849-5937-4cce-a36d-8444ecca3030)
 
 
 
@@ -59,28 +68,32 @@
 ## :sparkling_heart:依赖管理器
 * `Dependencies `: 这个主要是用来管理comfyui安装好的依赖，安装和卸载，包括查看依赖的所有版本，还有环境的冲突有哪些 
 
-![comfly编辑](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/15aa9b3d-3ec6-4d98-b1da-2b6f6d9be537)
+![comfly编辑](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/dc1752c8-8d64-4364-9ba3-21507cbaacd8)
+
 
   
   
 ## :tangerine:Comfyui版本管理
 * `Comfyui version`: comfyui本体版本的管理和切换.
 
-![comfly编辑 (1)](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/867fe6b9-911b-4b31-9cfd-dce660d28cd7)
+
+![comfly编辑 (1)](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/fee00ca2-b4e3-474a-a002-708a05f2adcb)
 
 
 
 ## :cactus:插件管理
 * `Costum nodes`: 管理插件的安装，启用和禁用，插件的版本管理，更新等等.
 
-![comfly编辑 (2)](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/bee1831c-3343-48b6-8355-62cb35e07c8e)
+![comfly编辑 (2)](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/d060808f-7408-4bb5-bd62-981299da79f8)
+
 
 
 
 ## :partying_face:插件依赖文件安装和修改
 * `Requirements`: 可以查看和修改依赖版本，并且直接一键安装.
 
-![comfly编辑 (3)](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/a360d66c-938c-49e7-9720-3aeefa62b25a)
+
+![comfly编辑 (3)](https://github.com/ainewsto/Comfyui_Comfly/assets/113163264/8d685533-52cb-4de7-ae8e-3420b6fa804d)
 
 
 
