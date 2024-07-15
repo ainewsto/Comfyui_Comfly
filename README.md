@@ -73,6 +73,11 @@
 
 ![1721054164609](https://github.com/user-attachments/assets/2147dd00-820c-431d-be96-fcf465cb3b23)
 
+* `如何获取cookie `: 先登录账号：https://klingai.kuaishou.com/
+* 按F12，然后点击右边的网络，如下图：注意cookie先自己复制到任意txt文件里面，这样容易为一行，免得你放入json文件格式不对。
+  ![QQ_1721056187584](https://github.com/user-attachments/assets/cb451b71-21cd-4cde-bf78-11ce81202fb4)
+
+
 
 
 # 🥵 Comfly的QQ群 / my wechat
