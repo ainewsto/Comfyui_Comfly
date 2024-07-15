@@ -423,6 +423,7 @@ async def toggle_plugin(request):
     except Exception as e:
         return web.json_response({'error': str(e)}, status=500)
     
+
 async def open_plugin_folder(request):
     plugin_name = request.query.get('plugin_name')
     if not plugin_name:
@@ -596,6 +597,7 @@ async def install_plugin_requirements(request):
         print(error_message)
         return web.json_response({'error': error_message}, status=500)
     
+
 async def checkout_plugin_branch(request):
     plugin_name = request.query.get('plugin_name')
     branch = request.query.get('branch')
@@ -712,7 +714,26 @@ async def get_purify_js(request):
         return web.Response(body=js_data, content_type='application/javascript')
     else:
         return web.Response(status=404)
-          
+     
+
+def load_api_config():
+    try:
+        current_dir = os.path.dirname(os.path.realpath(__file__))
+        config_path = os.path.join(current_dir, 'Comflyapi.json')
+
+        if not os.path.exists(config_path):
+            return {}
+
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+        return config
+    except Exception as e:
+        return {}
+
+async def get_config(request):
+    config = load_api_config()
+    return web.json_response(config)      
+     
 
 app = web.Application()
 
@@ -729,6 +750,7 @@ cors = setup(app, defaults={
 
 # Define routes
 routes = [
+    ("/api/get_config", get_config),
     ("/view_plugin_requirements", view_plugin_requirements),
     ("/lib/marked.min.js", get_marked_js), 
     ("/lib/purify.min.js", get_purify_js),
@@ -771,17 +793,3 @@ def start_api_server():
 if __name__ == '__main__':
     print("\033[32m ** Comfly Loaded :\033[33m fly, just fly ")
     web.run_app(app, port=8080, access_log=None, print=None)
-
-
-
-WEB_DIRECTORY = "./web"
-
-NODE_CLASS_MAPPINGS = {
-
-}
-
-NODE_DISPLAY_NAME_MAPPINGS = {
-
-}
-     
-
