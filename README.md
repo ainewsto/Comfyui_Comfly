@@ -75,7 +75,8 @@
 
 * `如何获取cookie `: 先登录账号：https://klingai.kuaishou.com/
 * 按F12，然后点击右边的网络，如下图：注意cookie先自己复制到任意txt文件里面，这样容易为一行，免得你放入json文件格式不对。
-  ![QQ_1721056187584](https://github.com/user-attachments/assets/cb451b71-21cd-4cde-bf78-11ce81202fb4)
+![908a34a64272c7f6adaaaa61dd4942d](https://github.com/user-attachments/assets/fa9d7144-07c0-4c96-ac0a-2c1c8b78ff59)
+
 
 
 
