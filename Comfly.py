@@ -123,10 +123,6 @@ class Comfly_split_image:
             print("No image path or URL provided.")
             return (torch.empty(0), torch.empty(0), 0)
         
-        print(f"Splitting image: {image_path}")
-        print(f"Rows: {rows}, Columns: {columns}")
-        print(f"Should square: {should_square}, Should cleanup: {should_cleanup}, Should quiet: {should_quiet}")
-
         try:
             image = self.load_image_from_path(image_path)
             print(f"Loaded image: {image}")
@@ -251,7 +247,6 @@ class ComflyBaseNode:
             async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/action", headers=headers, json=payload) as response:
                 if response.status == 200:
                     data = await response.json()
-                    print(f"Response data: {data}")
                     return data
                 else:
                     error_message = f"Error submitting Midjourney action: {response.status}"
@@ -313,7 +308,6 @@ class ComflyBaseNode:
             async with session.get(f"{self.midjourney_api_url[self.speed]}/mj/task/{taskId}/fetch", headers=headers) as response:
                 if response.status == 200:
                     data = await response.json()
-                    print(f"Response data: {data}")
                     return data
                 else:
                     error_message = f"Error fetching Midjourney task result: {response.status}"
@@ -594,18 +588,15 @@ class Comfly_Mju(ComflyBaseNode):
     CATEGORY = "Comfly/Midjourney"
 
     def run(self, taskId, U1=False, U2=False, U3=False, U4=False):
-        print(f"Run method called with taskId: {taskId}, U1: {U1}, U2: {U2}, U3: {U3}, U4: {U4}")
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
             results = loop.run_until_complete(self.process_input(taskId, U1, U2, U3, U4))
         finally:
             loop.close()
-        print(f"Run method completed with results: {results}")
         return results
 
     async def process_input(self, taskId, U1=False, U2=False, U3=False, U4=False):
-        print(f"Process input called with taskId: {taskId}, U1: {U1}, U2: {U2}, U3: {U3}, U4: {U4}")
         try:
             if not any([U1, U2, U3, U4]):
                 raise self.MidjourneyError("NO_ACTION_SELECTED")
@@ -625,17 +616,12 @@ class Comfly_Mju(ComflyBaseNode):
                 action = "upsample"
                 index = 4
 
-            print(f"Selected action: {action} with index: {index}")
-
             task_result = await self.midjourney_fetch_task_result(taskId)
-            print(f"Task result fetched: {task_result}")
 
             message_hash = task_result["properties"]["messageHash"]
             custom_id = self.generate_custom_id(action, index, message_hash)
-            print(f"Generated custom ID: {custom_id}")
 
             response = await self.midjourney_submit_action(action, taskId, index, custom_id)
-            print(f"Submission response: {response}")
 
             if isinstance(response, str) and response.startswith("Error"):
                 print(f"Midjourney API returned an error: {response}")
@@ -649,9 +635,7 @@ class Comfly_Mju(ComflyBaseNode):
             while not task_result or task_result.get("status") != "SUCCESS" or task_result.get("progress") != "100%":
                 await asyncio.sleep(1)
                 task_result = await self.midjourney_fetch_task_result(response["result"])
-                print(f"Task result: {task_result}")
 
-            print(f"Returning task_result: {task_result}")
 
             if task_result.get("code") == 5 and task_result.get("description") == "task_no_found":
                 print(f"Task not found for taskId: {taskId}")
@@ -686,27 +670,22 @@ class Comfly_Mju(ComflyBaseNode):
         return str(uuid.uuid4()) 
 
     async def process_custom_id(self, custom_id):
-        print(f"Entered process_custom_id method with custom_id: {custom_id}")
         if custom_id:
             try:
                 action, index, uuid = self.parse_custom_id(custom_id)
-                print(f"Parsed custom_id - action: {action}, index: {index}, uuid: {uuid}")
                 taskId = self.extract_taskId(custom_id)
-                print(f"Extracted taskId: {taskId}")
+
                 
                 response = await self.midjourney_submit_action(action, taskId, index, custom_id)
-                print(f"Response from midjourney_submit_action: {response}")
                 taskId = response["result"]
-                print(f"New taskId: {taskId}")
+
                 
                 task_result = None
                 while not task_result or task_result.get("status") != "SUCCESS":
                     await asyncio.sleep(1)
                     task_result = await self.midjourney_fetch_task_result(taskId)
-                    print(f"Task result: {task_result}")
                 
                 image_url = task_result["imageUrl"]
-                print(f"Image URL: {image_url}")
                 return image_url
                 
             except Exception as e:
@@ -746,23 +725,14 @@ class Comfly_Mju(ComflyBaseNode):
             "taskId": taskId
         }
 
-        print(f"Submitting action: {action}")
-        print(f"API URL: {self.midjourney_api_url[self.speed]}/mj/submit/action")
-        print(f"Headers: {headers}")
-        print(f"Payload: {payload}")
-
         async with aiohttp.ClientSession() as session:
             async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/action", headers=headers, json=payload) as response:
-                print(f"Response status: {response.status}")
                 if response.status == 200:
                     data = await response.json()
-                    print(f"Response data: {data}")
                     return data
                 else:
                     error_message = f"Error submitting Midjourney action: {response.status}"
                     print(error_message)
-                    print(f"Request payload: {payload}")
-                    print(f"Response content: {await response.text()}")
                     return error_message
 
     async def midjourney_fetch_task_result(self, taskId):
@@ -806,22 +776,15 @@ class Comfly_Mju(ComflyBaseNode):
             "seed": seed
         }
 
-        print(f"Submitting imagine task with prompt: {prompt}")
-        print(f"API URL: {self.midjourney_api_url[self.speed]}/mj/submit/imagine")
-        print(f"Headers: {headers}")
-        print(f"Payload: {payload}")
 
         async with aiohttp.ClientSession() as session:
             async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/imagine", headers=headers, json=payload) as response:
-                print(f"Response status: {response.status}")
                 if response.status == 200:
                     data = await response.json()
-                    print(f"Response data: {data}")
                     return data["result"]
                 else:
                     error_message = f"Error submitting Midjourney task: {response.status}"
                     print(error_message)
-                    print(f"Response content: {await response.text()}")
                     raise Exception(error_message)
 
     async def midjourney_fetch_task_result(self, taskId):
@@ -877,27 +840,18 @@ class Comfly_Mjv(ComflyBaseNode):
         if extraParams:
             payload.update(extraParams)
 
-        print(f"Submitting action: {action}")
-        print(f"API URL: {self.midjourney_api_url[self.speed]}/mj/submit/action")  
-        print(f"Headers: {headers}")
-        print(f"Payload: {payload}")
-
         async with aiohttp.ClientSession() as session:
             async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/action", headers=headers, json=payload) as response: 
-                print(f"Response status: {response.status}")
                 if response.status == 200:
                     data = await response.json()
-                    print(f"Response data: {data}")
                     return data
                 else:
                     error_message = f"Error submitting Midjourney action: {response.status}"
                     print(error_message)
-                    print(f"Response content: {await response.text()}")
                     raise Exception(error_message)
 
     def run(self, taskId, upsample_v6_2x_subtle=False, upsample_v6_2x_creative=False, costume_zoom=False, zoom="", pan_left=False, pan_right=False, pan_up=False, pan_down=False):
-        print(f"Run method called with taskId: {taskId}, upsample_v6_2x_subtle: {upsample_v6_2x_subtle}, upsample_v6_2x_creative: {upsample_v6_2x_creative}, costume_zoom: {costume_zoom}, zoom: {zoom}, pan_left: {pan_left}, pan_right: {pan_right}, pan_up: {pan_up}, pan_down: {pan_down}")
-        
+       
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
@@ -911,15 +865,6 @@ class Comfly_Mjv(ComflyBaseNode):
         return image_url
 
     async def process_input(self, taskId, upsample_v6_2x_subtle=False, upsample_v6_2x_creative=False, costume_zoom=False, zoom="", pan_left=False, pan_right=False, pan_up=False, pan_down=False):
-        print(f"Received taskId: {taskId}")
-        print(f"upsample_v6_2x_subtle: {upsample_v6_2x_subtle}")
-        print(f"upsample_v6_2x_creative: {upsample_v6_2x_creative}")
-        print(f"costume_zoom: {costume_zoom}")
-        print(f"zoom: {zoom}")
-        print(f"pan_left: {pan_left}")
-        print(f"pan_right: {pan_right}")
-        print(f"pan_up: {pan_up}")
-        print(f"pan_down: {pan_down}")
 
         image_url = ""
 
@@ -936,50 +881,35 @@ class Comfly_Mjv(ComflyBaseNode):
                     prompt = task_result["properties"]["finalPrompt"] + zoom_param
 
                     custom_id = self.generate_custom_id("zoom", 1, task_result["properties"]["messageHash"])
-                    print(f"Generated custom ID: {custom_id}")
                     response = await self.submit("ACTION", taskId, 1, {"customId": custom_id})
-                    print(f"Submission response: {response}")
 
                     response = await self.submit_modal(prompt, response["result"])
-                    print(f"Modal submission response: {response}")
 
                     image_url = await self.process_task(response["result"])
 
                 elif upsample_v6_2x_subtle:
                     custom_id = self.generate_custom_id("upsample_v6_2x_subtle", 1, message_hash)
-                    print(f"Generated custom ID: {custom_id}")
                     response = await self.submit("upsample_v6_2x_subtle", taskId, 1, {"customId": custom_id})
-                    print(f"Submission response: {response}")
                     image_url = await self.process_task(response["result"])
                 elif upsample_v6_2x_creative:
                     custom_id = self.generate_custom_id("upsample_v6_2x_creative", 1, message_hash)
-                    print(f"Generated custom ID: {custom_id}")
                     response = await self.submit("upsample_v6_2x_creative", taskId, 1, {"customId": custom_id})
-                    print(f"Submission response: {response}")
                     image_url = await self.process_task(response["result"])
                 elif pan_left:
                     custom_id = self.generate_custom_id("pan_left", 1, message_hash)
-                    print(f"Generated custom ID: {custom_id}")
                     response = await self.submit("pan_left", taskId, 1, {"customId": custom_id})
-                    print(f"Submission response: {response}")
                     image_url = await self.process_task(response["result"])
                 elif pan_right:
                     custom_id = self.generate_custom_id("pan_right", 1, message_hash)
-                    print(f"Generated custom ID: {custom_id}")
                     response = await self.submit("pan_right", taskId, 1, {"customId": custom_id})
-                    print(f"Submission response: {response}")
                     image_url = await self.process_task(response["result"])
                 elif pan_up:
                     custom_id = self.generate_custom_id("pan_up", 1, message_hash)
-                    print(f"Generated custom ID: {custom_id}")
                     response = await self.submit("pan_up", taskId, 1, {"customId": custom_id})
-                    print(f"Submission response: {response}")
                     image_url = await self.process_task(response["result"])
                 elif pan_down:
                     custom_id = self.generate_custom_id("pan_down", 1, message_hash)
-                    print(f"Generated custom ID: {custom_id}")
                     response = await self.submit("pan_down", taskId, 1, {"customId": custom_id})
-                    print(f"Submission response: {response}")
                     image_url = await self.process_task(response["result"])
                 else:
                     image_url = task_result["imageUrl"]    
@@ -1000,22 +930,14 @@ class Comfly_Mjv(ComflyBaseNode):
             "taskId": taskId
         }
 
-        print(f"Submitting modal")
-        print(f"API URL: {self.midjourney_api_url[self.speed]}/mj/submit/modal")
-        print(f"Headers: {headers}")
-        print(f"Payload: {payload}")
-
         async with aiohttp.ClientSession() as session:
             async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/modal", headers=headers, json=payload) as response:
-                print(f"Response status: {response.status}")
                 if response.status == 200:
                     data = await response.json()
-                    print(f"Response data: {data}")
                     return data
                 else:
                     error_message = f"Error submitting Midjourney modal: {response.status}"
                     print(error_message)
-                    print(f"Response content: {await response.text()}")
                     raise Exception(error_message)
     
     def generate_custom_id(self, action, index, message_hash):
@@ -1039,7 +961,6 @@ class Comfly_Mjv(ComflyBaseNode):
             await asyncio.sleep(1)
             try:
                 task_result = await self.midjourney_fetch_task_result(taskId)
-                print(f"Task result: {task_result}")
             except Exception as e:
                 error_message = f"Error fetching task result: {str(e)}"
                 print(error_message)
@@ -1502,7 +1423,6 @@ class Comfly_kling_image:
                     output_images = []
                     for work in data["data"]["works"]:
                         image_url = work["resource"]["resource"]
-                        print(f"Image URL: {image_url}")
                         image_response = requests.get(image_url, stream=True)
                         try:
                             output_images.append(pil2tensor(Image.open(image_response.raw)))
@@ -1552,4 +1472,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_luma": "Comfly_luma",
     "Comfly_kling_image": "Comfly_kling_image",
 }
+        
         
