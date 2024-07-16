@@ -23,7 +23,7 @@ import sysconfig
 import hashlib
 from io import StringIO
 from contextlib import redirect_stdout, redirect_stderr
-
+import psutil
 
 
 async def on_prepare(request, response):
