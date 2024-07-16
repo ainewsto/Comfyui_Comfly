@@ -787,9 +787,20 @@ for route in routes:
     cors.add(resource.add_route("GET", route[1]))
     cors.add(resource.add_route("POST", route[1]))
 
+def stop_process_on_port(port):
+    for proc in psutil.process_iter(['pid', 'name']):
+        try:
+            for conn in proc.connections():
+                if conn.laddr.port == port:
+                    proc.terminate()
+                    proc.wait()
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+
 def start_api_server():
-    web.run_app(app, port=8080, access_log=None)
+    stop_process_on_port(8080)
+    web.run_app(app, port=8080, access_log=None, print=None)
 
 if __name__ == '__main__':
-    print("\033[32m ** Comfly Loaded :\033[33m fly, just fly ")
-    web.run_app(app, port=8080, access_log=None, print=None)
+    print("\033[32m ** Comfly Loaded :\033[33m fly, just fly")
+    start_api_server()
