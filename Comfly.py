@@ -15,6 +15,7 @@ import base64
 import uuid
 from split_image import split_image
 import tempfile
+from folder_paths import get_input_directory
 
 
 def pil2tensor(image: Union[Image.Image, List[Image.Image]]) -> torch.Tensor:
@@ -1301,6 +1302,7 @@ class Comfly_luma:
                 else:
                     raise Exception(f"Error fetching task result from Luma API: {response.status}")
                 
+                
 class Comfly_kling_image:
     """
     Comfly_kling_image node
@@ -1363,6 +1365,7 @@ class Comfly_kling_image:
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+            pbar = comfy.utils.ProgressBar(100)  
             task_id = loop.run_until_complete(self.submit_task(payload))
         finally:
             loop.close()
@@ -1371,7 +1374,7 @@ class Comfly_kling_image:
             print("Failed to submit task to Kling AI API.")
             return (torch.zeros((4, 512, 512, 3)),)
 
-        output_images = self.wait_for_task_completion(task_id)
+        output_images = self.wait_for_task_completion(task_id, pbar)  
         return (output_images,)
 
     async def submit_task(self, payload):
@@ -1405,7 +1408,7 @@ class Comfly_kling_image:
                     print(f"Failed to submit task after {max_retries} attempts. Last error: {str(e)}")
                     return None
 
-    def wait_for_task_completion(self, task_id):
+    def wait_for_task_completion(self, task_id, pbar):
         headers = {
             "Content-Type": "application/json, text/plain, */*",
             "Accept-Encoding": "gzip, deflate, br, zstd",
@@ -1419,6 +1422,10 @@ class Comfly_kling_image:
                 response = requests.get(f"{self.api_url}/api/task/status?taskId={task_id}", headers=headers)
                 data = response.json()
 
+                if "data" in data and "status" in data["data"]:
+                    status = data["data"]["status"]
+                    pbar.update_absolute(status)  
+  
                 if data["data"]["status"] == 99:
                     output_images = []
                     for work in data["data"]["works"]:
@@ -1431,7 +1438,7 @@ class Comfly_kling_image:
                             output_images.append(torch.zeros((1, 512, 512, 3), dtype=torch.uint8))
                     return torch.cat(output_images, dim=0)
 
-                time.sleep(retry_delay)
+                time.sleep(retry_delay) 
                 retry_delay *= 1.5
             except Exception as e:
                 if attempt < max_retries - 1:
@@ -1443,8 +1450,206 @@ class Comfly_kling_image:
                     return torch.zeros((4, 512, 512, 3))
         
 
+class Comfly_kling_text2video:
+    """
+    Comfly_kling_text2video node
 
-   
+    Generates videos from text inputs using the Kling AI API.
+
+    Inputs:
+        text (STRING): Input text for text-to-video generation.
+        imagination (FLOAT): Creativity imagination level (0-1).
+        duration (STRING): Video duration (5, 10). 10 is only available when mode is high_quality.
+        ratio (STRING): Video aspect ratio (16:9, 9:16, 1:1).
+        camera (STRING): Camera movement (none, horizontal, vertical, zoom, vertical_shake, horizontal_shake, rotate, master_down_zoom, master_zoom_up, master_right_rotate_zoom, master_left_rotate_zoom).
+        text_no (STRING): Content to exclude from the video.
+
+    Outputs:
+        video (VIDEO): Generated video file.
+        video_url (STRING): Local file path of the generated video.
+    """
+
+    api_url = "https://klingai.kuaishou.com"
+
+    def __init__(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        config_file_path = os.path.join(current_dir, 'Comflyapi.json')
+
+        with open(config_file_path, 'r') as f:
+            config = json.load(f)
+
+        self.cookie = config.get('cookie', '')
+
+        if not self.cookie:
+            raise ValueError("Cookie is required. Please enter the correct cookie in Comflyapi.json")
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "text": ("STRING", {"multiline": True}),
+                "imagination": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.05}),
+                "duration": (["5", "10"], {"default": "5"}),
+                "ratio": (["16:9", "9:16", "1:1"], {"default": "16:9"}),
+                "mode": (["high_quality", "high_performance"], {"default": "high_performance"}),
+            },
+            "optional": {
+                "camera": (["none", "horizontal", "vertical", "zoom", "vertical_shake", "horizontal_shake", "rotate", 
+                            "master_down_zoom", "master_zoom_up", "master_right_rotate_zoom", "master_left_rotate_zoom"], 
+                           {"default": "none"}),                
+                "camera_value": ("FLOAT", {"default": 0, "min": -10, "max": 10, "step": 0.1}),
+                "text_no": ("STRING", {"multiline": True, "default": ""}),
+            }
+        }
+
+    RETURN_TYPES = ("VIDEO", "STRING")
+    RETURN_NAMES = ("video", "video_url")
+    FUNCTION = "generate_video"
+    CATEGORY = "Comfly/Comfly_kling"
+
+    def generate_video(self, text, imagination, duration, ratio, camera, text_no, mode, camera_value=0):
+        video_type = "m2v_txt2video_hq" if mode == "high_quality" else "m2v_txt2video"
+
+        payload = {
+            "arguments": [
+                {"name": "prompt", "value": text},
+                {"name": "negative_prompt", "value": text_no},
+                {"name": "cfg", "value": str(imagination)},
+                {"name": "duration", "value": duration},
+                {"name": "aspect_ratio", "value": ratio},
+                {"name": "camera_json", "value": self.get_camera_json(camera, camera_value)},
+                {"name": "biz", "value": "klingai"}
+            ],
+            "inputs": [],
+            "type": video_type,
+        }
+
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            pbar = comfy.utils.ProgressBar(100)  
+            task_id = loop.run_until_complete(self.submit_task(payload))
+            loop.close()
+
+            if task_id is None:
+                print("Failed to get task ID. Returning empty video.")
+                return ("", "")
+
+            video_path = self.wait_for_task_completion(task_id, pbar) 
+            return (video_path, video_path)
+        except Exception as e:
+            print(f"Error generating video: {str(e)}")
+            return ("", "")
+
+    async def submit_task(self, payload):
+        headers = {
+            "Content-Type": "application/json;charset=UTF-8",
+            "Cookie": self.cookie,
+        }
+        max_retries = 3
+        retry_delay = 1
+
+        for attempt in range(max_retries):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(f"{self.api_url}/api/task/submit", json=payload, headers=headers) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            if data and "data" in data and "task" in data["data"] and "id" in data["data"]["task"]:
+                                return data["data"]["task"]["id"]
+                            else:
+                                raise Exception(f"Unexpected response from Kling AI API: {data}")
+                        else:
+                            raise Exception(f"Error submitting task: {response.status}")
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    print(f"Attempt {attempt + 1} failed. Retrying in {retry_delay} seconds. Error: {str(e)}")
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2
+                else:
+                    print(f"Failed to submit task after {max_retries} attempts. Last error: {str(e)}")
+                    return None
+
+    def wait_for_task_completion(self, task_id, pbar, max_retries=300, retry_delay=1):
+        headers = {
+            "Content-Type": "application/json, text/plain, */*",
+            "Accept-Encoding": "gzip, deflate, br, zstd",
+            "Cookie": self.cookie,
+        }
+
+        for attempt in range(max_retries):
+            try:
+                response = requests.get(f"{self.api_url}/api/task/status?taskId={task_id}", headers=headers)
+                data = response.json()
+
+                if "data" in data and "status" in data["data"]:
+                    status = data["data"]["status"]
+                    pbar.update_absolute(status)  
+
+                if data["data"]["status"] == 99:
+                    video_url = data["data"]["works"][0]["resource"]["resource"]
+                    return self.download_video(video_url)
+            except Exception as e:
+                print(f"Attempt {attempt + 1} failed while fetching task status. Error: {str(e)}")
+
+            time.sleep(retry_delay)
+
+        raise Exception(f"Exceeded max retries ({max_retries}) while waiting for task completion.")
+
+    def download_video(self, video_url):
+        input_path = get_input_directory()
+        video_filename = f"{str(uuid.uuid4())}.mp4"
+        video_path = os.path.join(input_path, video_filename)
+
+        response = requests.get(video_url, stream=True)
+        with open(video_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+
+        return video_path
+
+    def get_camera_json(self, camera, camera_value=0):
+        camera_mappings = {
+            "none": {"type":"empty","horizontal":0,"vertical":0,"zoom":0,"tilt":0,"pan":0,"roll":0},
+            "horizontal": {"type":"horizontal","horizontal":camera_value,"vertical":0,"zoom":0,"tilt":0,"pan":0,"roll":0}, 
+            "vertical": {"type":"vertical","horizontal":0,"vertical":camera_value,"zoom":0,"tilt":0,"pan":0,"roll":0},
+            "zoom": {"type":"zoom","horizontal":0,"vertical":0,"zoom":camera_value,"tilt":0,"pan":0,"roll":0},
+            "vertical_shake": {"type":"vertical_shake","horizontal":0,"vertical":camera_value,"zoom":0.5,"tilt":0,"pan":0,"roll":0},
+            "horizontal_shake": {"type":"horizontal_shake","horizontal":camera_value,"vertical":0,"zoom":0.5,"tilt":0,"pan":0,"roll":0}, 
+            "rotate": {"type":"rotate","horizontal":0,"vertical":0,"zoom":0,"tilt":0,"pan":camera_value,"roll":0},
+            "master_down_zoom": {"type":"zoom","horizontal":0,"vertical":0,"zoom":camera_value,"tilt":camera_value,"pan":0,"roll":0},
+            "master_zoom_up": {"type":"zoom","horizontal":0.2,"vertical":0,"zoom":camera_value,"tilt":0,"pan":0,"roll":0},
+            "master_right_rotate_zoom": {"type":"rotate","horizontal":0,"vertical":0,"zoom":camera_value,"tilt":0,"pan":0,"roll":camera_value},
+            "master_left_rotate_zoom": {"type":"rotate","horizontal":0,"vertical":0,"zoom":camera_value,"tilt":0,"pan":camera_value,"roll":0},
+        }
+        
+        return json.dumps(camera_mappings.get(camera, camera_mappings["none"]))
+
+
+
+class Comfly_kling_videoPreview:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":{
+            "video":("VIDEO",),
+        }}
+    
+    CATEGORY = "Comfly/Comfly_kling"
+    DESCRIPTION = "Preview the generated video."
+
+    RETURN_TYPES = ()
+
+    OUTPUT_NODE = True
+
+    FUNCTION = "Preview_video"
+
+    def Preview_video(self, video):
+        video_name = os.path.basename(video)
+        video_path_name = os.path.basename(os.path.dirname(video))
+        return {"ui":{"video":[video_name,video_path_name]}}
+
+
+
 WEB_DIRECTORY = "./web"    
         
 NODE_CLASS_MAPPINGS = {
@@ -1458,6 +1663,8 @@ NODE_CLASS_MAPPINGS = {
     "Comfly_coze": Comfly_coze,
     "Comfly_luma": Comfly_luma,
     "Comfly_kling_image": Comfly_kling_image,
+    "Comfly_kling_text2video": Comfly_kling_text2video,
+    "Comfly_kling_videoPreview": Comfly_kling_videoPreview,   
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1471,6 +1678,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_coze": "Comfly_coze",
     "Comfly_luma": "Comfly_luma",
     "Comfly_kling_image": "Comfly_kling_image",
+    "Comfly_kling_text2video": "Comfly_kling_text2video",  
+    "Comfly_kling_videoPreview": "Comfly_kling_videoPreview",  
 }
-        
+    
         
