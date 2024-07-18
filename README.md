@@ -69,15 +69,23 @@
 ![1721053977137](https://github.com/user-attachments/assets/6183e311-31ca-41c2-bb6e-07d691c86fcd)
 
 
-## Kling可灵节点，文生图，自己填写cookie就可以运行了
+## Kling可灵节点，文生图，文生视频，自己填写cookie就可以运行了
 
 ![1721054164609](https://github.com/user-attachments/assets/2147dd00-820c-431d-be96-fcf465cb3b23)
+
+![QQ_1721308463263](https://github.com/user-attachments/assets/adb064ff-4bc0-4b30-afcf-e2f91393d3c2)
 
 * `如何获取cookie `: 先登录账号：https://klingai.kuaishou.com/
 * 按F12，然后点击右边的网络，如下图：注意cookie先自己复制到任意txt文件里面，这样容易为一行，免得你放入json文件格式不对。
 ![fe2ac28f29b9314f305c197d6194bfe](https://github.com/user-attachments/assets/aee700dc-2df1-4cb5-a4da-fce0390c1441)
 
+> \[!IMPORTANT]\
+> 使用可灵的文生图和文生视频请严格遵守可灵的相关协议：https://klingai.kuaishou.com/docs/user-policy
+> 
+> 制作这个节点是方便大家更好的创作作品，可灵的效果不错，期待官方的api，支持他们创作优化好产品~
+>
 
+![222](https://github.com/user-attachments/assets/26ccf251-cbc6-49bd-8529-fefde538aba9)
 
 
 
