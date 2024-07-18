@@ -1338,7 +1338,7 @@ class Comfly_kling_image:
             "required": {
                 "text": ("STRING", {"multiline": True}),
                 "aspect_ratio": (["1:1", "16:9", "4:3", "3:2", "2:3", "3:4", "9:16"], {"default": "1:1"}),
-                "image_count": ("INT", {"default": 4, "min": 1, "max": 8, "step": 1}),
+                "image_count": ("INT", {"default": 4, "min": 1, "max": 9, "step": 1}),
             }
         }
 
