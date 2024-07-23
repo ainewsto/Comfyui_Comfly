@@ -802,5 +802,5 @@ def start_api_server():
     web.run_app(app, port=8080, access_log=None, print=None)
 
 if __name__ == '__main__':
-    print("\033[32m ** Comfly Loaded :\033[33m fly, just fly")
+    print("\033[32m ** Comfly Loaded :\033[33m fly, just fly\033[0m")
     start_api_server()
