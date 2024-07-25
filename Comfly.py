@@ -1339,6 +1339,7 @@ class Comfly_kling_image:
                 "text": ("STRING", {"multiline": True}),
                 "aspect_ratio": (["1:1", "16:9", "4:3", "3:2", "2:3", "3:4", "9:16"], {"default": "1:1"}),
                 "image_count": ("INT", {"default": 4, "min": 1, "max": 9, "step": 1}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})  
             }
         }
 
@@ -1346,7 +1347,7 @@ class Comfly_kling_image:
     FUNCTION = "generate_image"
     CATEGORY = "Comfly/Comfly_kling"
 
-    def generate_image(self, text, aspect_ratio, image_count):
+    def generate_image(self, text, aspect_ratio, image_count, seed):
         if text is None:
             raise ValueError("Text input must be provided.")
 
@@ -1357,6 +1358,7 @@ class Comfly_kling_image:
                 {"name": "aspect_ratio", "value": aspect_ratio},
                 {"name": "imageCount", "value": str(image_count)}, 
                 {"name": "biz", "value": "klingai"},
+                {"name": "seed", "value": str(seed)}  
             ],
             "inputs": [],
             "type": "mmu_txt2img_aiweb",
@@ -1492,6 +1494,7 @@ class Comfly_kling_text2video:
                 "duration": (["5", "10"], {"default": "5"}),
                 "ratio": (["16:9", "9:16", "1:1"], {"default": "16:9"}),
                 "mode": (["high_quality", "high_performance"], {"default": "high_performance"}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})  
             },
             "optional": {
                 "camera": (["none", "horizontal", "vertical", "zoom", "vertical_shake", "horizontal_shake", "rotate", 
@@ -1507,7 +1510,7 @@ class Comfly_kling_text2video:
     FUNCTION = "generate_video"
     CATEGORY = "Comfly/Comfly_kling"
 
-    def generate_video(self, text, imagination, duration, ratio, camera, text_no, mode, camera_value=0):
+    def generate_video(self, text, imagination, duration, ratio, camera, text_no, mode, seed, camera_value=0):
         video_type = "m2v_txt2video_hq" if mode == "high_quality" else "m2v_txt2video"
 
         payload = {
@@ -1518,7 +1521,8 @@ class Comfly_kling_text2video:
                 {"name": "duration", "value": duration},
                 {"name": "aspect_ratio", "value": ratio},
                 {"name": "camera_json", "value": self.get_camera_json(camera, camera_value)},
-                {"name": "biz", "value": "klingai"}
+                {"name": "biz", "value": "klingai"},
+                {"name": "seed", "value": str(seed)} 
             ],
             "inputs": [],
             "type": video_type,
