@@ -869,7 +869,6 @@ cors = setup(app, defaults={
 # Define routes
 routes = [
    ("/api/get_config", get_config),
-   ("/view_plugin_requirements", view_plugin_requirements),
    ("/lib/marked.min.js", get_marked_js), 
    ("/lib/purify.min.js", get_purify_js),
    ("/mjstyle/{name}.json", get_mjstyle_json),
@@ -903,9 +902,11 @@ routes = [
 
 # Add routes to the application with CORS
 for route in routes:
-   resource = cors.add(app.router.add_resource(route[0]))
-   cors.add(resource.add_route("GET", route[1]))
-   cors.add(resource.add_route("POST", route[1]))
+    resource = cors.add(app.router.add_resource(route[0]))
+    if route[0] in ["/get_config", "/view_plugin_requirements", "/lib/marked.min.js", "/lib/purify.min.js", "/mjstyle/{name}.json", "/get_dependencies", "/get_comfyui_versions", "/get_current_comfyui_version", "/get_current_comfyui_branch", "/get_plugins", "/get_plugin_versions", "/view_plugin_requirements", "/open_plugin_folder", "/open_site_packages_folder", "/check_dependency_conflicts", "/get_dependency_versions", "/get_plugin_default_branch", "/get_module_version"]:
+        cors.add(resource.add_route("GET", route[1]))
+    elif route[0] in ["/install_dependency", "/manage_dependency", "/replace_dependency", "/select_comfyui_version", "/fix_comfyui_detached_branch", "/install_plugin", "/select_plugin_version", "/update_plugin", "/edit_plugin_requirements", "/toggle_plugin", "/install_dependency_version", "/install_plugin_requirements", "/checkout_plugin_branch"]:
+        cors.add(resource.add_route("POST", route[1]))
 
 def stop_process_on_port(port):
    for proc in psutil.process_iter(['pid', 'name']):
