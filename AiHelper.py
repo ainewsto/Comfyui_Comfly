@@ -657,42 +657,59 @@ async def install_dependency_version(request):
        return web.json_response({'error': error_message}, status=500)
 
 
-async def install_plugin_requirements(plugin_name):
-   try:
-       plugin_path = await get_plugin_path(plugin_name)
-       requirements_path = os.path.join(plugin_path, 'requirements.txt')
-       
-       if not os.path.exists(plugin_path):
-           error_message = f'Plugin {plugin_name} does not exist'
-           logging.error(error_message)
-           return
-       
-       if not os.path.exists(requirements_path):
-           logging.info(f'No requirements found for plugin {plugin_name}')
-           return
+async def install_plugin_requirements(request):
+    plugin_name = request.query.get('plugin_name')
+    if not plugin_name:
+        return web.json_response({'error': 'Plugin name is required'}, status=400)
+    
+    try:
+        plugin_path = await get_plugin_path(plugin_name)
+        requirements_path = os.path.join(plugin_path, 'requirements.txt')
+        
+        if not os.path.exists(plugin_path):
+            error_message = f'Plugin {plugin_name} does not exist'
+            logging.error(error_message)
+            return web.json_response({'error': error_message}, status=400)
+        
+        if not os.path.exists(requirements_path):
+            logging.info(f'No requirements found for plugin {plugin_name}')
+            return web.json_response({'message': 'No requirements found for this plugin'})
 
-       python_path = await get_python_path()
-       
-       logging.info(f"Installing requirements for plugin: {plugin_name}")
-       
-       process = await asyncio.subprocess.create_subprocess_exec(python_path, '-m', 'pip', 'install', '-r', requirements_path, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
+        python_path = await get_python_path()
+        
+        logging.info(f"Installing requirements for plugin: {plugin_name}")
+        
+        process = await asyncio.create_subprocess_exec(
+            python_path, '-m', 'pip', 'install', '-r', requirements_path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT
+        )
 
-       while True:
-           line = await process.stdout.readline()
-           if not line:
-               break
-           logging.info(line.decode('utf-8').strip())
+        response = web.StreamResponse()
+        response.headers['Content-Type'] = 'text/plain'
+        await response.prepare(request)
 
-       await process.wait()
+        while True:
+            line = await process.stdout.readline()
+            if not line:
+                break
+            await response.write(line)
+            await response.drain()
 
-       if process.returncode == 0:
-           logging.info(f"Successfully installed requirements for plugin: {plugin_name}")
-       else:
-           logging.error(f"Failed to install requirements for plugin: {plugin_name}")
+        await process.wait()
 
-   except Exception as e:
-       error_message = f"Error installing requirements for plugin: {plugin_name}. {str(e)}"
-       logging.error(error_message)
+        if process.returncode == 0:
+            await response.write(b"Installation completed successfully.\n")
+        else:
+            await response.write(b"Installation failed.\n")
+
+        await response.write_eof()
+        return response
+
+    except Exception as e:
+        error_message = f"Error installing requirements for plugin: {plugin_name}. {str(e)}"
+        logging.error(error_message)
+        return web.json_response({'error': error_message}, status=500)
    
 
 async def checkout_plugin_branch(request):
@@ -761,7 +778,51 @@ async def get_plugin_default_branch(request):
     except Exception as e:
         error_message = f"Error getting default branch for plugin: {plugin_name}. {str(e)}"
         return web.json_response({'error': error_message}, status=500)
+    
 
+async def get_plugin_details(request):
+    plugin_name = request.query.get('plugin_name')
+    if not plugin_name:
+        return web.json_response({'error': 'Plugin name is required'}, status=400)
+    try:
+        plugin_path = await get_plugin_path(plugin_name)
+        if not os.path.exists(plugin_path):
+            return web.json_response({'error': f'Plugin {plugin_name} does not exist'}, status=400)
+        
+        plugin_details = {
+            'name': plugin_name,
+            'type': 'directory' if os.path.isdir(plugin_path) else 'file',
+            'url': '', 
+            'version': '',
+            'date': '',
+            'enabled': not plugin_name.endswith(".disabled"),
+            'branch': ''
+        }
+
+        git_config_path = os.path.join(plugin_path, ".git", "config")
+        if os.path.exists(git_config_path):
+            with open(git_config_path, "r") as git_config_file:
+                git_config = git_config_file.read()
+                url_match = re.search(r'url = (.*)', git_config)
+                if url_match:
+                    plugin_details['url'] = url_match.group(1)
+
+        try:
+            repo = git.Repo(plugin_path)
+
+            if repo.head.is_detached:
+                plugin_details['branch'] = 'Detached'
+            else:
+                plugin_details['branch'] = repo.active_branch.name
+
+        except git.InvalidGitRepositoryError:
+            plugin_details['branch'] = 'unknown'
+
+        return web.json_response(plugin_details)
+    except Exception as e:
+        logging.error(f"Error getting details for plugin {plugin_name}: {str(e)}")
+        return web.json_response({'error': str(e)}, status=500)
+    
    
 def get_package_version(module_path):
    try:
@@ -885,6 +946,7 @@ routes = [
    ("/install_plugin", install_plugin),
    ("/select_plugin_version", select_plugin_version),
    ("/update_plugin", update_plugin),
+   ("/get_plugin_details", get_plugin_details),
    ("/get_plugin_versions", get_plugin_versions),
    ("/view_plugin_requirements", view_plugin_requirements),
    ("/edit_plugin_requirements", edit_plugin_requirements),
