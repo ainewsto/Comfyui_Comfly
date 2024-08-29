@@ -173,19 +173,17 @@ async def select_comfyui_version(request):
 
         repo.remotes.origin.fetch()
 
-        try:
-            repo.rev_parse(version_id)
-        except git.BadName:
-            error_message = f'Version {version_id} not found'
-            logging.error(error_message)
-            return web.json_response({'error': error_message}, status=404)
+        default_branch = repo.active_branch.name
+        if default_branch.startswith('version-'):
+            default_branch = next((b.name for b in repo.branches if not b.name.startswith('version-')), 'main')
 
         repo.git.checkout(version_id)
 
-        global current_comfyui_version_cache
-        current_comfyui_version_cache = version_id
+        if repo.head.is_detached:
+            repo.heads[default_branch].checkout()
+            repo.git.reset('--hard', version_id)
 
-        return web.json_response({'message': f'ComfyUI version switched to {version_id}'})
+        return web.json_response({'message': f'ComfyUI version switched to {version_id}', 'branch': default_branch})
     except Exception as e:
         error_message = f"Error selecting ComfyUI version: {str(e)}"
         logging.error(error_message)
@@ -368,40 +366,52 @@ async def install_plugin(request):
         return web.json_response({'error': str(e)}, status=500)
 
 async def select_plugin_version(request):
-    plugin_name = get_query_param(request, 'plugin_name')
-    version = get_query_param(request, 'version')
+    plugin_name = request.query.get('plugin_name')
+    version = request.query.get('version')
     if not plugin_name or not version:
-        return web.json_response({'error': 'Plugin name and version are required'}, status=400)
+        return web.json_response({'success': False, 'message': 'Plugin name and version are required'}, status=400)
     try:
         plugin_path = await get_plugin_path(plugin_name)
         if not os.path.exists(plugin_path):
-            error_message = f'Plugin {plugin_name} does not exist'
-            logging.error(error_message)
-            return web.json_response({'error': error_message}, status=400)
+            return web.json_response({'success': False, 'message': f'Plugin {plugin_name} does not exist'}, status=400)
+        
         repo = git.Repo(plugin_path)
         
         repo.git.stash()
         
         try:
             repo.git.checkout(version)
-        except git.GitCommandError as e:
-            error_message = f"Error selecting plugin version: {str(e)}"
-            logging.error(error_message)
-            return web.json_response({'error': error_message}, status=500)
+            
+            if repo.head.is_detached:
+                current_branch = 'Detached'
+            else:
+                current_branch = repo.active_branch.name
+            
+            if current_branch == 'Detached':
+                temp_branch_name = f'temp-{version[:7]}'
+                repo.git.checkout('-b', temp_branch_name)
+                current_branch = temp_branch_name
+            
+            plugin = next((p for p in await get_plugins_list() if p['name'] == plugin_name), None)
+            if plugin:
+                plugin['version'] = version
+                plugin['branch'] = current_branch
+            
+            return web.json_response({
+                'success': True, 
+                'message': f'Successfully switched plugin {plugin_name} to version {version}',
+                'version': version,
+                'branch': current_branch
+            })
         
-        try:
+        except git.GitCommandError as e:
             repo.git.stash('pop')
-        except git.GitCommandError:
-            pass
-
-        plugin = next((p for p in await get_plugins_list() if p['name'] == plugin_name), None)
-        if plugin:
-            plugin['version'] = version
-       
-        return web.json_response({'message': f'Plugin version switched to {version}'})
+            return web.json_response({'success': False, 'message': f'Git command error: {str(e)}'}, status=500)
+        
     except Exception as e:
-       logging.error(f"Error selecting plugin version: {str(e)}")
-       return web.json_response({'error': str(e)}, status=500)
+        logging.error(f"Error selecting plugin version: {str(e)}")
+        return web.json_response({'success': False, 'message': str(e)}, status=500)
+
 
 async def get_plugins_list():
     response = await get_plugins(None)
@@ -778,8 +788,31 @@ async def get_plugin_default_branch(request):
     except Exception as e:
         error_message = f"Error getting default branch for plugin: {plugin_name}. {str(e)}"
         return web.json_response({'error': error_message}, status=500)
-    
 
+async def fix_plugin_branch(request):
+    plugin_name = request.query.get('plugin_name')
+    if not plugin_name:
+        return web.json_response({'error': 'Plugin name is required'}, status=400)
+    try:
+        plugin_path = await get_plugin_path(plugin_name)
+        repo = git.Repo(plugin_path)
+        
+        for branch in ['main', 'master']:
+            try:
+                repo.git.checkout(branch)
+                return web.json_response({'message': f'Switched to {branch} branch for plugin: {plugin_name}'})
+            except git.GitCommandError:
+                continue
+        
+        default_branch = repo.active_branch.name
+        repo.git.checkout(default_branch)
+        return web.json_response({'message': f'Switched to default branch {default_branch} for plugin: {plugin_name}'})
+    except Exception as e:
+        error_message = f"Error fixing branch for plugin: {plugin_name}. {str(e)}"
+        logging.error(error_message)
+        return web.json_response({'error': error_message}, status=500)
+
+        
 async def get_plugin_details(request):
     plugin_name = request.query.get('plugin_name')
     if not plugin_name:
@@ -929,6 +962,7 @@ cors = setup(app, defaults={
 
 # Define routes
 routes = [
+   ("/fix_plugin_branch", fix_plugin_branch),
    ("/api/get_config", get_config),
    ("/lib/marked.min.js", get_marked_js), 
    ("/lib/purify.min.js", get_purify_js),
