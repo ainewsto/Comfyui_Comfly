@@ -27,9 +27,25 @@
 
 # 更新 Update：
 
-* 20240913：`comfly按钮`: 修改悬浮按钮，鼠标放置上去可以点击右上角关闭按钮，再次按键盘快捷键：“A”+“S”按钮显示悬浮按钮
+20241012：`插件页面`: 增加Re按钮：插件增加查看本地readme按钮。修改一些更新按钮的bug。
+<details>
+<summary>更新细节 | Update </summary>  
+  
+![e7db5bfab6500542eb994d8dd78baeb](https://github.com/user-attachments/assets/ed800a3d-56ef-427e-8b8d-893117ce2c74)
+
+![7650f3adaee7eae0f0ef8d2b3a97542](https://github.com/user-attachments/assets/ce6f4085-68a6-462c-b7a2-94b3376b226e)
+
+</details>
+  
+
+20240913：`comfly按钮`: 修改悬浮按钮，鼠标放置上去可以点击右上角关闭按钮，再次按键盘快捷键：“A”+“S”按钮显示悬浮按钮
+<details>
+<summary>更新细节 | Update </summary>  
   
 ![058a06b98ea23688ce3cb3e0c41f418](https://github.com/user-attachments/assets/6c6ed9d4-fd82-45e4-b32a-9d7ecce5c3ea)
+
+</details>  
+
 
 
 # 主要功能界面：
