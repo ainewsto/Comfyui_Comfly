@@ -27,6 +27,15 @@
 
 # 更新 Update：
 
+20241021：`comfly按钮`: 修改悬浮按钮关闭方式，直接按键盘的“A”+“S”按钮关闭和隐藏悬浮按钮，再次按键盘快捷键：“A”+“S”按钮显示悬浮按钮
+注意：A不是Alt，而只是键盘的字母键而已！！！！！
+<details>
+<summary>查看更新/Update </summary>  
+ 
+![1](https://github.com/user-attachments/assets/b86d8fd7-ec3d-4a43-9761-dfcec17353d7)
+
+</details>  
+
 20241012：`插件页面`: 增加Re按钮：插件增加查看本地readme按钮。修改一些更新按钮的bug。
 <details>
 <summary>查看更新/Update </summary>  
