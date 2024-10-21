@@ -27,12 +27,13 @@
 
 # 更新 Update：
 
-20241021：`comfly按钮`: 修改悬浮按钮关闭方式，直接按键盘的“A”+“S”按钮关闭和隐藏悬浮按钮，再次按键盘快捷键：“A”+“S”按钮显示悬浮按钮
+20241021：`comfly按钮`: 修改悬浮按钮关闭方式，直接按键盘的“A”+“X”按钮关闭和隐藏悬浮按钮，再次按键盘快捷键：“A”+“S”按钮显示悬浮按钮
 注意：A不是Alt，而只是键盘的字母键而已！！！！！
 <details>
 <summary>查看更新/Update </summary>  
  
-![1](https://github.com/user-attachments/assets/b86d8fd7-ec3d-4a43-9761-dfcec17353d7)
+![1](https://github.com/user-attachments/assets/57c56b10-e9ea-4162-8193-31a52fc6a6fd)
+
 
 </details>  
 
