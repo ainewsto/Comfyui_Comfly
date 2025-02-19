@@ -27,6 +27,15 @@
 
 # 更新 Update：
 
+20250219：`mj按钮`: 修复在ai模块里面，mj生成图片后点击U1等按钮失效问题。新增：ai模块上方的模型选择可以双击搜索模型功能。
+删除了侧边栏helpinfo按钮。
+<details>
+<summary>查看更新/Update </summary>  
+ 
+![8b8ec1ca909343daae7a0a64b542b54](https://github.com/user-attachments/assets/28e93ac5-558a-49f2-88de-cc8b9151a49c)
+
+</details>  
+
 20241021：`comfly按钮`: 修改悬浮按钮关闭方式，直接按键盘的“A”+“X”按钮关闭和隐藏悬浮按钮，再次按键盘快捷键：“A”+“S”按钮显示悬浮按钮
 注意：A不是Alt，而只是键盘的字母键而已！！！！！
 <details>
