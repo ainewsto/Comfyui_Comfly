@@ -661,9 +661,6 @@ class Comfly_Mjv(ComflyBaseNode):
         finally:
             loop.close()
         
-        result_str = f"Run method completed with results: taskId={taskId}, upsample_v6_2x_subtle={upsample_v6_2x_subtle}, upsample_v6_2x_creative={upsample_v6_2x_creative}, costume_zoom={costume_zoom}, zoom={zoom}, pan_left={pan_left}, pan_right={pan_right}, pan_up={pan_up}, pan_down={pan_down}, image_url={image_url}"
-        print(result_str)
-        
         return image_url
 
     async def process_input(self, taskId, upsample_v6_2x_subtle=False, upsample_v6_2x_creative=False, costume_zoom=False, zoom="", pan_left=False, pan_right=False, pan_up=False, pan_down=False):
