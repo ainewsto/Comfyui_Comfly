@@ -9,5 +9,4 @@ GitPython
 matrix-client
 transformers
 huggingface-hub
-split_image
 psutil
