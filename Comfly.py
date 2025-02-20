@@ -1,213 +1,20 @@
 import os
 import requests
 import time
-import numpy as np
 import torch
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image
 from io import BytesIO
 import json
 import comfy.utils
-from typing import List, Union
 import re
 import aiohttp
 import asyncio
 import base64
 import uuid
-from split_image import split_image
-import tempfile
 from folder_paths import get_input_directory
+import logging
+from .utils import pil2tensor, tensor2pil
 
-
-def pil2tensor(image: Union[Image.Image, List[Image.Image]]) -> torch.Tensor:
-    if isinstance(image, list):
-        return torch.cat([pil2tensor(img) for img in image], dim=0)
-
-    return torch.from_numpy(np.array(image).astype(np.float32) / 255.0).unsqueeze(0)
-
-class Comfly_to_image:
-    """
-    Comfly_to_image node
-
-    Processes image inputs from URL and returns the selected image.
-
-    Inputs:
-        image_url (STRING): URL of the image.
-
-    Outputs:
-        image (IMAGE): Selected image.
-    """
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "url": (
-                    "STRING",
-                    {
-                        "default": "https://comfly.chat/image.jpg"
-                    },
-                ),
-            }
-        }
-
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "process_input"
-    CATEGORY = "Comfly"
-
-    def process_input(self, url):
-        try:
-            response = requests.get(url, stream=True)
-            response.raise_for_status()
-            image = Image.open(response.raw)
-            image = ImageOps.exif_transpose(image)
-            return (pil2tensor(image),)
-        except (requests.exceptions.RequestException, IOError) as e:
-            print(f"Error fetching or processing image: {str(e)}")
-            placeholder_image = Image.new("RGB", (512, 512), (255, 255, 255))  
-            return (pil2tensor(placeholder_image),)
-    
-
-def pil2tensor(image: Union[Image.Image, List[Image.Image]]) -> torch.Tensor:
-    if isinstance(image, list):
-        if len(image) == 0:
-            return torch.empty(0)
-        return torch.cat([pil2tensor(img) for img in image], dim=0)
-
-    return torch.from_numpy(np.array(image).astype(np.float32) / 255.0).unsqueeze(0)
-
-
-class Comfly_split_image:
-    """Comfly_split_image node
-    Splits an input image into specified number of rows and columns.
-    """
-    
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "rows": ("INT", {"default": 2, "min": 1}),
-                "columns": ("INT", {"default": 2, "min": 1}),
-                "should_square": ("BOOLEAN", {"default": False}),
-                "should_cleanup": ("BOOLEAN", {"default": False}),
-                "should_quiet": ("BOOLEAN", {"default": False}),
-            },
-            "optional": {
-                "output_dir": ("STRING", {"default": os.path.join(os.getcwd(), "ComfyUI", "output", "Comfly_split_image")}),
-                "image_url": ("STRING", {"default": ""}),
-                "image_path": ("STRING", {"default": ""}),
-            },
-        }
-
-    RETURN_TYPES = ("IMAGE", "MASK", "INT")
-    RETURN_NAMES = ("IMAGE", "MASK", "IMAGE_COUNT")
-    FUNCTION = "split"
-    CATEGORY = "Comfly"
-
-    def __init__(self):
-        self.output_dir = ""
-
-    def split(self, rows: int, columns: int, should_square: bool, should_cleanup: bool, should_quiet: bool, output_dir: str = "", image_url: str = "", image_path: str = "") -> List[Image.Image]:
-        if image_url:
-            output_path = os.path.join(os.getcwd(), "ComfyUI", "output", "original_image.png")
-            try:
-                response = requests.get(image_url)
-                response.raise_for_status()
-                with open(output_path, "wb") as f:
-                    f.write(response.content)
-                print(f"Original image saved to: {output_path}")
-                image_path = output_path
-            except Exception as e:
-                print(f"Error saving original image: {str(e)}")
-                return (torch.empty(0), torch.empty(0), 0)
-        
-        if not image_path:
-            print("No image path or URL provided.")
-            return (torch.empty(0), torch.empty(0), 0)
-        
-        try:
-            image = self.load_image_from_path(image_path)
-            print(f"Loaded image: {image}")
-
-            if should_square:
-                print("Squaring image...")
-                image = self.make_square(image)
-                image.save(image_path)
-                print(f"Squared image saved to: {image_path}")
-
-            if not output_dir:
-                output_dir = os.path.join(os.getcwd(), "ComfyUI", "output", "Comfly_split_image")
-            os.makedirs(output_dir, exist_ok=True)
-            print(f"Output directory: {output_dir}")
-
-            print("Splitting image...")
-            split_images_dir = os.path.join(output_dir, "split_images")
-            os.makedirs(split_images_dir, exist_ok=True)
-            split_image(image_path, rows, columns, should_square, should_cleanup, should_quiet, split_images_dir)
-
-            images, masks = self.load_split_images(split_images_dir)
-
-            image_count = len(images)
-            if image_count == 0:
-                raise ValueError("No split images found in output directory.")
-            
-            image_tensor = torch.cat(images, dim=0)
-            mask_tensor = torch.stack(masks, dim=0)
-            
-            self.output_dir = output_dir
-            
-            return (image_tensor, mask_tensor, image_count)
-        
-        except Exception as e:
-            print(f"Error during image split: {str(e)}")
-            return (torch.empty(0), torch.empty(0), 0)
-
-    def load_image_from_path(self, path: str) -> Image.Image:
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"The file {path} does not exist.")
-        print(f"Loading image from path: {path}")
-        return Image.open(path)
-
-    def make_square(self, image: Image.Image) -> Image.Image:
-        width, height = image.size
-        print(f"Image size: {width}x{height}")
-        if width == height:
-            print("Image is already square.")
-            return image
-        new_size = max(width, height)
-        print(f"New square size: {new_size}x{new_size}")
-        new_image = Image.new("RGB", (new_size, new_size), (255, 255, 255))
-        new_image.paste(image, ((new_size - width) // 2, (new_size - height) // 2))
-        return new_image
-
-    def load_split_images(self, split_images_dir):
-        images = []
-        masks = []
-        for file in os.listdir(split_images_dir):
-            if file.endswith(".jpg") or file.endswith(".jpeg") or file.endswith(".png"):
-                path = os.path.join(split_images_dir, file)
-                i = Image.open(path)
-                i = ImageOps.exif_transpose(i)
-                image = i.convert("RGB")
-                image = np.array(image).astype(np.float32) / 255.0
-                image = torch.from_numpy(image)[None,]
-
-                if 'A' in i.getbands():
-                    mask = np.array(i.getchannel('A')).astype(np.float32) / 255.0
-                    mask = 1. - torch.from_numpy(mask)
-                else:
-                    mask = torch.zeros((image.shape[1], image.shape[2]), dtype=torch.float32, device="cpu")
-
-                images.append(image)
-                masks.append(mask)
-
-        return images, masks
-
-    def getOutputDir(self):
-        return self.output_dir
-    
-    @classmethod
-    def IS_CHANGED(cls, image_path: str, rows: int, columns: int, should_square: bool, should_cleanup: bool, should_quiet: bool, output_dir: str = ""):
-        return True
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 config_file_path = os.path.join(current_dir, 'Comflyapi.json')
@@ -315,21 +122,7 @@ class ComflyBaseNode:
                     print(error_message)
                     raise Exception(error_message)
 
-def tensor2pil(image: torch.Tensor) -> List[Image.Image]:
-    batch_count = image.size(0) if len(image.shape) > 3 else 1
-    if batch_count > 1:
-        out = []
-        for i in range(batch_count):
-            out.extend(tensor2pil(image[i]))
-        return out
 
-    return [
-        Image.fromarray(
-            np.clip(255.0 * image.cpu().numpy().squeeze(), 0, 255).astype(
-                np.uint8
-            )
-        )
-    ]
 
 class Comfly_upload(ComflyBaseNode):
     """
@@ -460,8 +253,8 @@ class Comfly_Mj(ComflyBaseNode):
             }
         }
 
-    RETURN_TYPES = ("STRING", "STRING", "STRING")
-    RETURN_NAMES = ("image_url", "text", "taskId")
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING")  
+    RETURN_NAMES = ("image", "text", "taskId")    
     OUTPUT_NODE = True
 
     FUNCTION = "process_input"
@@ -518,6 +311,11 @@ class Comfly_Mj(ComflyBaseNode):
         elif self.text:
             pbar = comfy.utils.ProgressBar(10)
             image_url, text, taskId = self.process_text(pbar, ar, no, c, s, iw, tile, r, video, sw, cw, sv, seed)
+
+            response = requests.get(image_url)
+            image = Image.open(BytesIO(response.content))
+            tensor_image = pil2tensor(image)
+            return tensor_image, text, taskId
         else:
             raise ValueError("Either image or text input must be provided for Midjourney model.")
 
@@ -583,8 +381,8 @@ class Comfly_Mju(ComflyBaseNode):
             }
         }
 
-    RETURN_TYPES = ("STRING", "STRING")
-    RETURN_NAMES = ("image_url", "taskId")
+    RETURN_TYPES = ("IMAGE", "STRING")  
+    RETURN_NAMES = ("image", "taskId")  
     FUNCTION = "run"
     CATEGORY = "Comfly/Midjourney"
 
@@ -633,16 +431,19 @@ class Comfly_Mju(ComflyBaseNode):
                 raise self.MidjourneyError(f"Unexpected response from Midjourney API: {response}")
 
             task_result = None
+            task_id = response["result"]
             while not task_result or task_result.get("status") != "SUCCESS" or task_result.get("progress") != "100%":
                 await asyncio.sleep(1)
-                task_result = await self.midjourney_fetch_task_result(response["result"])
-
+                task_result = await self.midjourney_fetch_task_result(task_id)
 
             if task_result.get("code") == 5 and task_result.get("description") == "task_no_found":
                 print(f"Task not found for taskId: {taskId}")
                 raise self.MidjourneyError(f"Task not found for taskId: {taskId}")
 
-            return task_result["imageUrl"], response["result"]
+            response = requests.get(task_result["imageUrl"])
+            image = Image.open(BytesIO(response.content))
+            tensor_image = pil2tensor(image)
+            return tensor_image, task_id 
 
         except self.MidjourneyError as e:
             print(f"Midjourney API error: {str(e)}")
@@ -827,8 +628,8 @@ class Comfly_Mjv(ComflyBaseNode):
             }
         }
 
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("image_url",)
+    RETURN_TYPES = ("IMAGE",) 
+    RETURN_NAMES = ("image",) 
     FUNCTION = "run"
     CATEGORY = "Comfly/Midjourney"
 
@@ -912,8 +713,14 @@ class Comfly_Mjv(ComflyBaseNode):
                     custom_id = self.generate_custom_id("pan_down", 1, message_hash)
                     response = await self.submit("pan_down", taskId, 1, {"customId": custom_id})
                     image_url = await self.process_task(response["result"])
+                if image_url:
+                    response = requests.get(image_url)
+                    image = Image.open(BytesIO(response.content))
+                    tensor_image = pil2tensor(image)
+                    return (tensor_image,)
                 else:
-                    image_url = task_result["imageUrl"]    
+                    return (None,)
+
             except Exception as e:
                 error_message = f"Error processing action: {str(e)}"
                 print(error_message)
@@ -1066,571 +873,8 @@ class Comfly_mjstyle:
 
         return (style_positive, style_negative)
     
-
-
-class Comfly_coze:
-    """
-    Comfly_coze node
-
-    Interacts with the Coze API to process text input and returns processed output.
-
-    Inputs:
-        text (STRING, optional): Input text for processing.
-        seed (INT): Seed value for reproducibility.
-
-    Outputs:
-        image (IMAGE): Processed image output.
-        text (STRING): Processed text output.
-    """
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "optional": {
-                "text": ("STRING", {"multiline": True}),
-            },
-            "required": {
-                "seed": ("INT", {"default": 42, "min": 0}),
-            },
-            "hidden": {
-                "stream": ("BOOLEAN", {"default": False}),
-            }
-        }
-
-    RETURN_TYPES = ("IMAGE", "STRING")
-    RETURN_NAMES = ("output_image", "output_text")
-    FUNCTION = "process_input"
-    CATEGORY = "Comfly"
-
-    def __init__(self):
-        self.api_url = "https://api.coze.cn/open_api/v2/chat"
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        config_file_path = os.path.join(current_dir, 'Comflyapi.json')
-
-        with open(config_file_path, 'r') as f:
-            api_config = json.load(f)
-
-        self.auth_token = api_config.get('coze_auth_token', '') 
-        self.bot_id = api_config.get('bot_id', '')
-        self.user_id = api_config.get('user_id', '')
-
-    async def process_coze_api(self, payload):
-        headers = {
-            "Authorization": f"Bearer {self.auth_token}",
-            "Content-Type": "application/json",
-            "Accept": "*/*",
-            "Host": "api.coze.cn",
-            "Connection": "keep-alive"
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(self.api_url, headers=headers, json=payload) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data
-                else:
-                    raise Exception(f"Error from Coze API: {response.status}")
-
-    def process_input(self, text="", seed=42, stream=False):
-        print("Input values:")
-        print(f"  text: {text}")
-        print(f"  seed: {seed}")
-        print(f"  stream: {stream}")
-
-        payload = {
-            "conversation_id": "123",
-            "bot_id": self.bot_id,
-            "user": self.user_id,
-            "query": "",
-            "stream": stream
-        }
-
-        if text:
-            print(f"Processing text: {text}")
-            payload["query"] = text
-
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(self.process_coze_api(payload))
-        loop.close()
-
-        output_image = None
-        output_text = ""
-        plugin_name = ""
-
-        if "messages" in result:
-            for message in result["messages"]:
-                if message["role"] == "assistant" and message["type"] == "function_call":
-                    content = json.loads(message["content"])
-                    if "plugin_name" in content:
-                        plugin_name = content["plugin_name"]
-                if message["role"] == "assistant" and message["type"] == "tool_response":
-                    content = json.loads(message["content"])
-                    if content is None:
-                        raise ValueError("Content cannot be None")
-                    if "data" in content and "image_urls" in content["data"]:
-                        image_url = content["data"]["image_urls"][0]
-                        text = content["data"].get("text", "")
-                        response = requests.get(image_url)
-                        image = Image.open(BytesIO(response.content))
-                        output_image = pil2tensor(image)
-                elif message["role"] == "assistant" and message["type"] == "answer":
-                    output_text = message["content"]
-                    print(f"Output text: {output_text}")
-
-        if plugin_name:
-            output_text = f"Plugin: {plugin_name}\n{output_text}"
-
-        return output_image, output_text
-
-def pil2tensor(image: Union[Image.Image, List[Image.Image]]) -> torch.Tensor:
-    if isinstance(image, list):
-        return torch.cat([pil2tensor(img) for img in image], dim=0)
-
-    return torch.from_numpy(np.array(image).astype(np.float32) / 255.0).unsqueeze(0)
-
-
-class Comfly_luma:
-    """
-    Comfly_luma node
-
-    Processes image and/or text inputs using Luma API and returns the processed video file path.
-
-    Inputs:
-        image (IMAGE, optional): Input image for processing.
-        text (STRING, optional): Input text prompt for processing.
-
-    Outputs:
-        video_path (STRING): Local file path of the processed video.
-    """
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "text": ("STRING", {"default": "", "multiline": True}),
-            },
-            "optional": {
-                "image": ("IMAGE",),
-            },
-        }
-
-    RETURN_TYPES = ("STRING",)
-    RETURN_NAMES = ("video_path",)
-    FUNCTION = "process_input"
-    CATEGORY = "Comfly"
-
-    def __init__(self):
-        self.api_url = "https://ai.comfly.chat/luma/generations/"
         
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        config_file_path = os.path.join(current_dir, 'Comflyapi.json')
-
-        with open(config_file_path, 'r') as f:
-            api_config = json.load(f)
-
-        self.api_key = api_config.get('api_key', '')
-
-    async def process_luma_api(self, payload):
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}"
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(self.api_url, headers=headers, json=payload) as response:
-                if response.status == 201:
-                    data = await response.json()
-                    return data
-                else:
-                    raise Exception(f"Error from Luma API: {response.status}")
-
-    def process_input(self, text="", image=None):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        video_path = loop.run_until_complete(self.process_image_and_text(image, text))
-        loop.close()
-
-        return (video_path,)
-
-    async def process_image_and_text(self, image, text):
-        payload = {
-            "aspect_ratio": "16:9",
-            "expand_prompt": True,
-            "user_prompt": text
-        }
-
-        if image is not None:
-            # Convert the image to base64
-            buffered = BytesIO()
-            image = tensor2pil(image)[0]
-            image.save(buffered, format="PNG")
-            image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-            payload["image_url"] = f"data:image/png;base64,{image_base64}"
-
-        # Submit the task to Luma API
-        response = await self.process_luma_api(payload)
-        task_id = response["id"]
-
-        # Fetch the task result
-        while True:
-            await asyncio.sleep(1)
-            response = await self.fetch_task_result(task_id)
-            if response["state"] == "completed":
-                video_url = response["video"]["url"]
-                break
-
-        # Download the video to a local temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_file:
-            video_path = temp_file.name
-            response = requests.get(video_url)
-            temp_file.write(response.content)
-
-        return video_path
-
-    async def fetch_task_result(self, task_id):
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}"
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{self.api_url}{task_id}", headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data
-                else:
-                    raise Exception(f"Error fetching task result from Luma API: {response.status}")
-                
-                
-class Comfly_kling_image:
-    """
-    Comfly_kling_image node
-
-    Generates images from text inputs using the Kling AI API.
-
-    Inputs:
-        text (STRING, optional): Input text for text-to-image generation.
-        aspect_ratio (STRING): Aspect ratio of the generated images (1:1, 16:9, 4:3, 3:2, 2:3, 3:4, 9:16).
-        image_count (INT): Number of images to generate (1-8).
-
-    Outputs:
-        image (IMAGE): Generated images.
-    """
-
-    api_url = "https://klingai.kuaishou.com"
-
-    def __init__(self):
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        config_file_path = os.path.join(current_dir, 'Comflyapi.json')
-
-        with open(config_file_path, 'r') as f:
-            config = json.load(f)
-
-        self.cookie = config.get('cookie', '')
-
-        if not self.cookie:
-            raise ValueError("Cookie is required. Please enter the correct cookie in Comflyapi.json")
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "text": ("STRING", {"multiline": True}),
-                "aspect_ratio": (["1:1", "16:9", "4:3", "3:2", "2:3", "3:4", "9:16"], {"default": "1:1"}),
-                "image_count": ("INT", {"default": 4, "min": 1, "max": 9, "step": 1}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})  
-            }
-        }
-
-    RETURN_TYPES = ("IMAGE",)
-    FUNCTION = "generate_image"
-    CATEGORY = "Comfly/Comfly_kling"
-
-    def generate_image(self, text, aspect_ratio, image_count, seed):
-        if text is None:
-            raise ValueError("Text input must be provided.")
-
-        payload = {
-            "arguments": [
-                {"name": "prompt", "value": text},
-                {"name": "style", "value": "默认"},
-                {"name": "aspect_ratio", "value": aspect_ratio},
-                {"name": "imageCount", "value": str(image_count)}, 
-                {"name": "biz", "value": "klingai"},
-                {"name": "seed", "value": str(seed)}  
-            ],
-            "inputs": [],
-            "type": "mmu_txt2img_aiweb",
-        }
-
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            pbar = comfy.utils.ProgressBar(100)  
-            task_id = loop.run_until_complete(self.submit_task(payload))
-        finally:
-            loop.close()
-
-        if task_id is None:
-            print("Failed to submit task to Kling AI API.")
-            return (torch.zeros((4, 512, 512, 3)),)
-
-        output_images = self.wait_for_task_completion(task_id, pbar)  
-        return (output_images,)
-
-    async def submit_task(self, payload):
-        headers = {
-            "Content-Type": "application/json;charset=UTF-8",
-            "Cookie": self.cookie,
-        }
-        max_retries = 3
-        retry_delay = 1
-
-        for attempt in range(max_retries):
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(f"{self.api_url}/api/task/submit", json=payload, headers=headers) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            if data and "data" in data and "task" in data["data"] and "id" in data["data"]["task"]:
-                                return data["data"]["task"]["id"]
-                            else:
-                                print(f"Unexpected response from Kling AI API: {data}")
-                                return None
-                        else:
-                            print(f"Error submitting task: {response.status}")
-                            return None
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    print(f"Attempt {attempt + 1} failed. Retrying in {retry_delay} seconds. Error: {str(e)}")
-                    await asyncio.sleep(retry_delay)
-                    retry_delay *= 2
-                else:
-                    print(f"Failed to submit task after {max_retries} attempts. Last error: {str(e)}")
-                    return None
-
-    def wait_for_task_completion(self, task_id, pbar):
-        headers = {
-            "Content-Type": "application/json, text/plain, */*",
-            "Accept-Encoding": "gzip, deflate, br, zstd",
-            "Cookie": self.cookie,
-        }
-        max_retries = 5
-        retry_delay = 1
-
-        for attempt in range(max_retries):
-            try:
-                response = requests.get(f"{self.api_url}/api/task/status?taskId={task_id}", headers=headers)
-                data = response.json()
-
-                if "data" in data and "status" in data["data"]:
-                    status = data["data"]["status"]
-                    pbar.update_absolute(status)  
-  
-                if data["data"]["status"] == 99:
-                    output_images = []
-                    for work in data["data"]["works"]:
-                        image_url = work["resource"]["resource"]
-                        image_response = requests.get(image_url, stream=True)
-                        try:
-                            output_images.append(pil2tensor(Image.open(image_response.raw)))
-                        except UnidentifiedImageError as e:
-                            print(f"Error opening image: {e}")
-                            output_images.append(torch.zeros((1, 512, 512, 3), dtype=torch.uint8))
-                    return torch.cat(output_images, dim=0)
-
-                time.sleep(retry_delay) 
-                retry_delay *= 1.5
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    print(f"Attempt {attempt + 1} failed. Retrying in {retry_delay} seconds. Error: {str(e)}")
-                    time.sleep(retry_delay)
-                    retry_delay *= 2
-                else:
-                    print(f"Failed to get task result after {max_retries} attempts. Last error: {str(e)}")
-                    return torch.zeros((4, 512, 512, 3))
         
-
-class Comfly_kling_text2video:
-    """
-    Comfly_kling_text2video node
-
-    Generates videos from text inputs using the Kling AI API.
-
-    Inputs:
-        text (STRING): Input text for text-to-video generation.
-        imagination (FLOAT): Creativity imagination level (0-1).
-        duration (STRING): Video duration (5, 10). 10 is only available when mode is high_quality.
-        ratio (STRING): Video aspect ratio (16:9, 9:16, 1:1).
-        camera (STRING): Camera movement (none, horizontal, vertical, zoom, vertical_shake, horizontal_shake, rotate, master_down_zoom, master_zoom_up, master_right_rotate_zoom, master_left_rotate_zoom).
-        text_no (STRING): Content to exclude from the video.
-
-    Outputs:
-        video (VIDEO): Generated video file.
-        video_url (STRING): Local file path of the generated video.
-    """
-
-    api_url = "https://klingai.kuaishou.com"
-
-    def __init__(self):
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        config_file_path = os.path.join(current_dir, 'Comflyapi.json')
-
-        with open(config_file_path, 'r') as f:
-            config = json.load(f)
-
-        self.cookie = config.get('cookie', '')
-
-        if not self.cookie:
-            raise ValueError("Cookie is required. Please enter the correct cookie in Comflyapi.json")
-
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {
-            "required": {
-                "text": ("STRING", {"multiline": True}),
-                "imagination": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.05}),
-                "duration": (["5", "10"], {"default": "5"}),
-                "ratio": (["16:9", "9:16", "1:1"], {"default": "16:9"}),
-                "mode": (["high_quality", "high_performance"], {"default": "high_performance"}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})  
-            },
-            "optional": {
-                "camera": (["none", "horizontal", "vertical", "zoom", "vertical_shake", "horizontal_shake", "rotate", 
-                            "master_down_zoom", "master_zoom_up", "master_right_rotate_zoom", "master_left_rotate_zoom"], 
-                           {"default": "none"}),                
-                "camera_value": ("FLOAT", {"default": 0, "min": -10, "max": 10, "step": 0.1}),
-                "text_no": ("STRING", {"multiline": True, "default": ""}),
-            }
-        }
-
-    RETURN_TYPES = ("VIDEO", "STRING")
-    RETURN_NAMES = ("video", "video_url")
-    FUNCTION = "generate_video"
-    CATEGORY = "Comfly/Comfly_kling"
-
-    def generate_video(self, text, imagination, duration, ratio, camera, text_no, mode, seed, camera_value=0):
-        video_type = "m2v_txt2video_hq" if mode == "high_quality" else "m2v_txt2video"
-
-        payload = {
-            "arguments": [
-                {"name": "prompt", "value": text},
-                {"name": "negative_prompt", "value": text_no},
-                {"name": "cfg", "value": str(imagination)},
-                {"name": "duration", "value": duration},
-                {"name": "aspect_ratio", "value": ratio},
-                {"name": "camera_json", "value": self.get_camera_json(camera, camera_value)},
-                {"name": "biz", "value": "klingai"},
-                {"name": "seed", "value": str(seed)} 
-            ],
-            "inputs": [],
-            "type": video_type,
-        }
-
-        try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            pbar = comfy.utils.ProgressBar(100)  
-            task_id = loop.run_until_complete(self.submit_task(payload))
-            loop.close()
-
-            if task_id is None:
-                print("Failed to get task ID. Returning empty video.")
-                return ("", "")
-
-            video_path = self.wait_for_task_completion(task_id, pbar) 
-            return (video_path, video_path)
-        except Exception as e:
-            print(f"Error generating video: {str(e)}")
-            return ("", "")
-
-    async def submit_task(self, payload):
-        headers = {
-            "Content-Type": "application/json;charset=UTF-8",
-            "Cookie": self.cookie,
-        }
-        max_retries = 3
-        retry_delay = 1
-
-        for attempt in range(max_retries):
-            try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(f"{self.api_url}/api/task/submit", json=payload, headers=headers) as response:
-                        if response.status == 200:
-                            data = await response.json()
-                            if data and "data" in data and "task" in data["data"] and "id" in data["data"]["task"]:
-                                return data["data"]["task"]["id"]
-                            else:
-                                raise Exception(f"Unexpected response from Kling AI API: {data}")
-                        else:
-                            raise Exception(f"Error submitting task: {response.status}")
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    print(f"Attempt {attempt + 1} failed. Retrying in {retry_delay} seconds. Error: {str(e)}")
-                    await asyncio.sleep(retry_delay)
-                    retry_delay *= 2
-                else:
-                    print(f"Failed to submit task after {max_retries} attempts. Last error: {str(e)}")
-                    return None
-
-    def wait_for_task_completion(self, task_id, pbar, max_retries=300, retry_delay=1):
-        headers = {
-            "Content-Type": "application/json, text/plain, */*",
-            "Accept-Encoding": "gzip, deflate, br, zstd",
-            "Cookie": self.cookie,
-        }
-
-        for attempt in range(max_retries):
-            try:
-                response = requests.get(f"{self.api_url}/api/task/status?taskId={task_id}", headers=headers)
-                data = response.json()
-
-                if "data" in data and "status" in data["data"]:
-                    status = data["data"]["status"]
-                    pbar.update_absolute(status)  
-
-                if data["data"]["status"] == 99:
-                    video_url = data["data"]["works"][0]["resource"]["resource"]
-                    return self.download_video(video_url)
-            except Exception as e:
-                print(f"Attempt {attempt + 1} failed while fetching task status. Error: {str(e)}")
-
-            time.sleep(retry_delay)
-
-        raise Exception(f"Exceeded max retries ({max_retries}) while waiting for task completion.")
-
-    def download_video(self, video_url):
-        input_path = get_input_directory()
-        video_filename = f"{str(uuid.uuid4())}.mp4"
-        video_path = os.path.join(input_path, video_filename)
-
-        response = requests.get(video_url, stream=True)
-        with open(video_path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-
-        return video_path
-
-    def get_camera_json(self, camera, camera_value=0):
-        camera_mappings = {
-            "none": {"type":"empty","horizontal":0,"vertical":0,"zoom":0,"tilt":0,"pan":0,"roll":0},
-            "horizontal": {"type":"horizontal","horizontal":camera_value,"vertical":0,"zoom":0,"tilt":0,"pan":0,"roll":0}, 
-            "vertical": {"type":"vertical","horizontal":0,"vertical":camera_value,"zoom":0,"tilt":0,"pan":0,"roll":0},
-            "zoom": {"type":"zoom","horizontal":0,"vertical":0,"zoom":camera_value,"tilt":0,"pan":0,"roll":0},
-            "vertical_shake": {"type":"vertical_shake","horizontal":0,"vertical":camera_value,"zoom":0.5,"tilt":0,"pan":0,"roll":0},
-            "horizontal_shake": {"type":"horizontal_shake","horizontal":camera_value,"vertical":0,"zoom":0.5,"tilt":0,"pan":0,"roll":0}, 
-            "rotate": {"type":"rotate","horizontal":0,"vertical":0,"zoom":0,"tilt":0,"pan":camera_value,"roll":0},
-            "master_down_zoom": {"type":"zoom","horizontal":0,"vertical":0,"zoom":camera_value,"tilt":camera_value,"pan":0,"roll":0},
-            "master_zoom_up": {"type":"zoom","horizontal":0.2,"vertical":0,"zoom":camera_value,"tilt":0,"pan":0,"roll":0},
-            "master_right_rotate_zoom": {"type":"rotate","horizontal":0,"vertical":0,"zoom":camera_value,"tilt":0,"pan":0,"roll":camera_value},
-            "master_left_rotate_zoom": {"type":"rotate","horizontal":0,"vertical":0,"zoom":camera_value,"tilt":0,"pan":camera_value,"roll":0},
-        }
-        
-        return json.dumps(camera_mappings.get(camera, camera_mappings["none"]))
-
-
-
 class Comfly_kling_videoPreview:
     @classmethod
     def INPUT_TYPES(s):
@@ -1657,33 +901,19 @@ class Comfly_kling_videoPreview:
 WEB_DIRECTORY = "./web"    
         
 NODE_CLASS_MAPPINGS = {
-    "Comfly_to_image": Comfly_to_image,
-    "Comfly_split_image": Comfly_split_image, 
     "Comfly_Mj": Comfly_Mj,
     "Comfly_mjstyle": Comfly_mjstyle,
     "Comfly_upload": Comfly_upload,
     "Comfly_Mju": Comfly_Mju,
     "Comfly_Mjv": Comfly_Mjv,  
-    "Comfly_coze": Comfly_coze,
-    "Comfly_luma": Comfly_luma,
-    "Comfly_kling_image": Comfly_kling_image,
-    "Comfly_kling_text2video": Comfly_kling_text2video,
     "Comfly_kling_videoPreview": Comfly_kling_videoPreview,   
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "Comfly_to_image": "Comfly_to_image",
-    "Comfly_split_image": "Comfly_split_image",
     "Comfly_Mj": "Comfly_Mj", 
     "Comfly_mjstyle": "Comfly_mjstyle",
     "Comfly_upload": "Comfly_upload",
     "Comfly_Mju": "Comfly_Mju",
     "Comfly_Mjv": "Comfly_Mjv",  
-    "Comfly_coze": "Comfly_coze",
-    "Comfly_luma": "Comfly_luma",
-    "Comfly_kling_image": "Comfly_kling_image",
-    "Comfly_kling_text2video": "Comfly_kling_text2video",  
     "Comfly_kling_videoPreview": "Comfly_kling_videoPreview",  
 }
-    
-        
