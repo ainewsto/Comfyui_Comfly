@@ -1,5 +1,5 @@
 [project]
-name = "Comfly"
+name = "Comfyui_Comfly"
 description = "NODES: Comfly_Mj, Comfly_mjstyle, Comfly_upload, Comfly_Mju, Comfly_Mjv, Comfly_kling_videoPreview"
 version = "1.0.0"
 license = {file = "LICENSE"}
@@ -10,6 +10,6 @@ Repository = "https://github.com/ainewsto/Comfyui_Comfly"
 #  Used by Comfy Registry https://comfyregistry.org
 
 [tool.comfy]
-PublisherId = "ainewsto"
+PublisherId = "Comfly"
 DisplayName = "Comfyui_Comfly"
 Icon = ""
