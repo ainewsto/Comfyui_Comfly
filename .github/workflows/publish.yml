@@ -12,12 +12,11 @@ jobs:
   publish-node:
     name: Publish Custom Node to registry
     runs-on: ubuntu-latest
-    if: ${{ github.repository_owner == 'ainewsto' }}
+    # if this is a forked repository. Skipping the workflow.
+    if: github.event.repository.fork == false 
     steps:
       - name: Check out code
         uses: actions/checkout@v4
-        with:
-          submodules: true
       - name: Publish Custom Node
         uses: Comfy-Org/publish-node-action@main
         with:
