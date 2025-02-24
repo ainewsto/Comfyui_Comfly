@@ -10,6 +10,6 @@ Repository = "https://github.com/ainewsto/Comfyui_Comfly"
 #  Used by Comfy Registry https://comfyregistry.org
 
 [tool.comfy]
-PublisherId = "comfly"
+PublisherId = "ainewsto"
 DisplayName = "Comfyui_Comfly"
 Icon = ""
