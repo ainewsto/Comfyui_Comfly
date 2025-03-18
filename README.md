@@ -27,6 +27,15 @@
 
 # 更新 Update：
 
+20250219：`kling节点`: 新增可灵文生视频，图生视频，视频延长（只支持v1.0模型）3个节点.
+可灵视频生成时间大概要5-6分钟左右，使用的是https://ai.comfly.chat的api key。
+<details>
+<summary>查看更新/Update </summary>  
+ 
+![微信图片_20250318201313](https://github.com/user-attachments/assets/96836710-95f7-4100-96ed-58e5d6553124)
+
+</details> 
+
 20250220：`chat按钮`: 修复在ai模块单击选择模型不生效问题。 删除一些节点，简化mj节点组。
 
 20250219：`mj按钮`: 修复在ai模块里面，mj生成图片后点击U1等按钮失效问题。新增：ai模块上方的模型选择可以双击搜索模型功能。
