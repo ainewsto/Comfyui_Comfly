@@ -27,7 +27,7 @@
 
 # 更新 Update：
 
-20250219：`kling节点`: 新增可灵文生视频，图生视频，视频延长（只支持v1.0模型）3个节点.
+20250318：`kling节点`: 新增可灵文生视频，图生视频，视频延长（只支持v1.0模型）3个节点.
 可灵视频生成时间大概要5-6分钟左右，使用的是https://ai.comfly.chat的api key。
 <details>
 <summary>查看更新/Update </summary>  
