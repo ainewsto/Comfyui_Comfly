@@ -1,7 +1,6 @@
 import os
 import requests
 import time
-import torch
 from PIL import Image
 from io import BytesIO
 import json
@@ -11,8 +10,7 @@ import aiohttp
 import asyncio
 import base64
 import uuid
-from folder_paths import get_input_directory
-import logging
+import folder_paths
 from .utils import pil2tensor, tensor2pil
 
 
@@ -21,6 +19,9 @@ config_file_path = os.path.join(current_dir, 'Comflyapi.json')
 
 with open(config_file_path, 'r') as f:
     api_config = json.load(f)
+
+
+############################# Midjourney ###########################
 
 class ComflyBaseNode:
     def __init__(self):
@@ -869,8 +870,408 @@ class Comfly_mjstyle:
         style_negative = self.replace_repeat(style_negative) if style_negative else ""
 
         return (style_positive, style_negative)
-    
-        
+
+
+############################# Kling ###########################
+
+class Comfly_kling_text2video:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "model_name": (["kling-v1-6", "kling-v1-5", "kling-v1"], {"default": "kling-v1-6"}),
+                "imagination": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.05}),
+                "aspect_ratio": (["1:1", "16:9", "9:16"], {"default": "1:1"}),
+                "mode": (["std", "pro"], {"default": "std"}),
+                "duration": (["5", "10"], {"default": "5"}),
+                "num_videos": ("INT", {"default": 1, "min": 1, "max": 4}),
+                "negative_prompt": ("STRING", {"multiline": True, "default": ""}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})
+            },
+            "optional": {
+                "camera": (["none", "horizontal", "vertical", "zoom", "vertical_shake", "horizontal_shake", 
+                          "rotate", "master_down_zoom", "master_zoom_up", "master_right_rotate_zoom", 
+                          "master_left_rotate_zoom"], {"default": "none"}),
+                "camera_value": ("FLOAT", {"default": 0, "min": -10, "max": 10, "step": 0.1})
+            }
+        }
+
+    RETURN_TYPES = ("VIDEO", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("video", "video_url", "task_id", "video_id")
+    FUNCTION = "generate_video"
+    CATEGORY = "Comfly/Comfly_kling"
+
+    def __init__(self):
+        super().__init__()
+        self.api_key = self.load_config_file().get('api_key', '')
+
+    def load_config_file(self):
+        config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Comflyapi.json")
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error loading config file: {str(e)}")
+            return {}
+
+    def generate_video(self, prompt, model_name, imagination, aspect_ratio, mode, duration, num_videos, 
+                      negative_prompt="", camera="none", camera_value=0, seed=0):
+        if not self.api_key:
+            raise ValueError("API key not found in Comflyapi.json")
+
+        camera_json = {}
+        if model_name == "kling-v1":  
+            camera_json = self.get_camera_json(camera, camera_value)
+        else:
+            camera_json = self.get_camera_json("none", 0)
+
+        payload = {
+            "prompt": prompt,
+            "negative_prompt": negative_prompt,
+            "image": "",
+            "image_tail": "",
+            "aspect_ratio": aspect_ratio,
+            "mode": mode,
+            "duration": duration,
+            "model_name": model_name,
+            "imagination": imagination,
+            "num_videos": num_videos,
+            "camera_json": camera_json,
+            "seed": seed
+        }
+
+        try:
+            pbar = comfy.utils.ProgressBar(100)  
+
+            response = requests.post(
+                "https://ai.comfly.chat/kling/v1/videos/text2video",
+                headers=self.get_headers(),
+                json=payload
+            )
+            response.raise_for_status()
+            result = response.json()
+
+            if result["code"] != 0:
+                raise Exception(f"API Error: {result['message']}")
+
+            task_id = result["data"]["task_id"]
+            pbar.update_absolute(5)  
+
+            while True:
+                time.sleep(2)
+                status_response = requests.get(
+                    f"https://ai.comfly.chat/kling/v1/videos/text2video/{task_id}",
+                    headers=self.get_headers()
+                )
+                status_response.raise_for_status()
+                status_result = status_response.json()
+
+                progress = status_result["data"].get("progress", 0)
+                pbar.update_absolute(progress)
+
+                if status_result["data"]["task_status"] == "succeed":
+                    pbar.update_absolute(100) 
+                    video_url = status_result["data"]["task_result"]["videos"][0]["url"]
+                    video_id = status_result["data"]["task_result"]["videos"][0]["id"]
+                    video_path = self.download_video(video_url)
+                    return (video_path, video_url, task_id, video_id)
+                
+                elif status_result["data"]["task_status"] == "failed":
+                    raise Exception("Video generation failed")
+
+        except Exception as e:
+            print(f"Error generating video: {str(e)}")
+            return ("", "", "", "")
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+
+    def download_video(self, video_url):
+        input_path = folder_paths.get_output_directory()
+        video_filename = f"{str(uuid.uuid4())}.mp4"
+        video_path = os.path.join(input_path, video_filename)
+
+        response = requests.get(video_url, stream=True)
+        with open(video_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+
+        return video_path
+
+    def get_camera_json(self, camera, camera_value=0):
+        camera_mappings = {
+            "none": {"type":"empty","horizontal":0,"vertical":0,"zoom":0,"tilt":0,"pan":0,"roll":0},
+            "horizontal": {"type":"horizontal","horizontal":camera_value,"vertical":0,"zoom":0,"tilt":0,"pan":0,"roll":0}, 
+            "vertical": {"type":"vertical","horizontal":0,"vertical":camera_value,"zoom":0,"tilt":0,"pan":0,"roll":0},
+            "zoom": {"type":"zoom","horizontal":0,"vertical":0,"zoom":camera_value,"tilt":0,"pan":0,"roll":0},
+            "vertical_shake": {"type":"vertical_shake","horizontal":0,"vertical":camera_value,"zoom":0.5,"tilt":0,"pan":0,"roll":0},
+            "horizontal_shake": {"type":"horizontal_shake","horizontal":camera_value,"vertical":0,"zoom":0.5,"tilt":0,"pan":0,"roll":0}, 
+            "rotate": {"type":"rotate","horizontal":0,"vertical":0,"zoom":0,"tilt":0,"pan":camera_value,"roll":0},
+            "master_down_zoom": {"type":"zoom","horizontal":0,"vertical":0,"zoom":camera_value,"tilt":camera_value,"pan":0,"roll":0},
+            "master_zoom_up": {"type":"zoom","horizontal":0.2,"vertical":0,"zoom":camera_value,"tilt":0,"pan":0,"roll":0},
+            "master_right_rotate_zoom": {"type":"rotate","horizontal":0,"vertical":0,"zoom":camera_value,"tilt":0,"pan":0,"roll":camera_value},
+            "master_left_rotate_zoom": {"type":"rotate","horizontal":0,"vertical":0,"zoom":camera_value,"tilt":0,"pan":camera_value,"roll":0},
+        }
+        return json.dumps(camera_mappings.get(camera, camera_mappings["none"]))
+
+
+class Comfly_kling_image2video:
+    @classmethod 
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "image_tail": ("IMAGE",),
+                "prompt": ("STRING", {"multiline": True}),
+                "model_name": (["kling-v1-6", "kling-v1-5", "kling-v1"], {"default": "kling-v1-6"}),
+                "imagination": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.05}),
+                "aspect_ratio": (["1:1", "16:9", "9:16"], {"default": "1:1"}),
+                "mode": (["std", "pro"], {"default": "std"}),
+                "duration": (["5", "10"], {"default": "5"}),
+                "num_videos": ("INT", {"default": 1, "min": 1, "max": 4}),
+                "negative_prompt": ("STRING", {"multiline": True, "default": ""}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})
+            },
+            "optional": {
+                "camera": (["none", "horizontal", "vertical", "zoom", "vertical_shake", "horizontal_shake", 
+                          "rotate", "master_down_zoom", "master_zoom_up", "master_right_rotate_zoom", 
+                          "master_left_rotate_zoom"], {"default": "none"}),
+                "camera_value": ("FLOAT", {"default": 0, "min": -10, "max": 10, "step": 0.1})
+            }
+        }
+
+    RETURN_TYPES = ("VIDEO", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("video", "video_url", "task_id", "video_id")
+    FUNCTION = "generate_video"
+    CATEGORY = "Comfly/Comfly_kling"
+
+    def __init__(self):
+        super().__init__()
+        self.api_key = self.load_config_file().get('api_key', '')
+
+    def load_config_file(self):
+        config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Comflyapi.json")
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error loading config file: {str(e)}")
+            return {}
+
+    def generate_video(self, image, image_tail, prompt, model_name, imagination, aspect_ratio, mode, duration, 
+                      num_videos, negative_prompt="", camera="none", camera_value=0, seed=0):
+        if not self.api_key:
+            raise ValueError("API key not found in Comflyapi.json")
+
+        camera_json = {}
+        if model_name == "kling-v1-5" and mode == "pro": 
+            camera_json = self.get_camera_json(camera, camera_value)
+        else:
+            camera_json = self.get_camera_json("none", 0)
+
+        image_base64 = self.image_to_base64(tensor2pil(image)[0])
+        image_tail_base64 = self.image_to_base64(tensor2pil(image_tail)[0])
+
+        payload = {
+            "prompt": prompt,
+            "negative_prompt": negative_prompt,
+            "image": image_base64,
+            "image_tail": image_tail_base64,
+            "aspect_ratio": aspect_ratio,
+            "mode": mode,
+            "duration": duration,
+            "model_name": model_name,
+            "imagination": imagination,
+            "num_videos": num_videos,
+            "camera_json": camera_json,
+            "seed": seed
+        }
+
+        try:
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(5)  
+
+            response = requests.post(
+                "https://ai.comfly.chat/kling/v1/videos/image2video",
+                headers=self.get_headers(),
+                json=payload
+            )
+            response.raise_for_status()
+            result = response.json()
+
+            if result["code"] != 0:
+                raise Exception(f"API Error: {result['message']}")
+
+            task_id = result["data"]["task_id"]
+            pbar.update_absolute(10) 
+
+            while True:
+                time.sleep(2)
+                status_response = requests.get(
+                    f"https://ai.comfly.chat/kling/v1/videos/image2video/{task_id}",
+                    headers=self.get_headers()
+                )
+                status_response.raise_for_status()
+                status_result = status_response.json()
+
+                progress = status_result["data"].get("progress", 0)
+                pbar.update_absolute(progress)
+
+                if status_result["data"]["task_status"] == "succeed":
+                    pbar.update_absolute(100) 
+                    video_url = status_result["data"]["task_result"]["videos"][0]["url"]
+                    video_id = status_result["data"]["task_result"]["videos"][0]["id"]
+                    video_path = self.download_video(video_url)
+                    return (video_path, video_url, task_id, video_id)
+                
+                elif status_result["data"]["task_status"] == "failed":
+                    raise Exception("Video generation failed")
+
+        except Exception as e:
+            print(f"Error generating video: {str(e)}")
+            return ("", "", "", "")
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+
+    def download_video(self, video_url):
+        input_path = folder_paths.get_output_directory()
+        video_filename = f"{str(uuid.uuid4())}.mp4"
+        video_path = os.path.join(input_path, video_filename)
+
+        response = requests.get(video_url, stream=True)
+        with open(video_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+
+        return video_path
+
+    def get_camera_json(self, camera, camera_value=0):
+        camera_mappings = {
+            "none": {"type":"empty","horizontal":0,"vertical":0,"zoom":0,"tilt":0,"pan":0,"roll":0},
+            "horizontal": {"type":"horizontal","horizontal":camera_value,"vertical":0,"zoom":0,"tilt":0,"pan":0,"roll":0}, 
+            "vertical": {"type":"vertical","horizontal":0,"vertical":camera_value,"zoom":0,"tilt":0,"pan":0,"roll":0},
+            "zoom": {"type":"zoom","horizontal":0,"vertical":0,"zoom":camera_value,"tilt":0,"pan":0,"roll":0},
+            "vertical_shake": {"type":"vertical_shake","horizontal":0,"vertical":camera_value,"zoom":0.5,"tilt":0,"pan":0,"roll":0},
+            "horizontal_shake": {"type":"horizontal_shake","horizontal":camera_value,"vertical":0,"zoom":0.5,"tilt":0,"pan":0,"roll":0}, 
+            "rotate": {"type":"rotate","horizontal":0,"vertical":0,"zoom":0,"tilt":0,"pan":camera_value,"roll":0},
+            "master_down_zoom": {"type":"zoom","horizontal":0,"vertical":0,"zoom":camera_value,"tilt":camera_value,"pan":0,"roll":0},
+            "master_zoom_up": {"type":"zoom","horizontal":0.2,"vertical":0,"zoom":camera_value,"tilt":0,"pan":0,"roll":0},
+            "master_right_rotate_zoom": {"type":"rotate","horizontal":0,"vertical":0,"zoom":camera_value,"tilt":0,"pan":0,"roll":camera_value},
+            "master_left_rotate_zoom": {"type":"rotate","horizontal":0,"vertical":0,"zoom":camera_value,"tilt":0,"pan":camera_value,"roll":0},
+        }
+        return json.dumps(camera_mappings.get(camera, camera_mappings["none"]))
+
+    def image_to_base64(self, image):
+        buffered = BytesIO()
+        image.save(buffered, format="PNG")
+        return base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+
+class Comfly_video_extend:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "video_id": ("STRING", {"default": "", "multiline": False, "forceInput": True}),
+                "prompt": ("STRING", {"default": "", "multiline": True}),
+            }
+        }
+
+    RETURN_TYPES = ("VIDEO", "STRING")
+    RETURN_NAMES = ("video", "video_id")
+    FUNCTION = "extend_video"
+    CATEGORY = "Comfly/Comfly_kling"
+
+    def __init__(self):
+        super().__init__()
+        self.api_key = self.load_config_file().get('api_key', '')
+
+    def load_config_file(self):
+        config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Comflyapi.json")
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error loading config file: {str(e)}")
+            return {}
+
+    def extend_video(self, video_id, prompt=""):
+        if not self.api_key:
+            raise ValueError("API key not found in Comflyapi.json")
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+
+        payload = {
+            "video_id": video_id,
+            "prompt": prompt
+        }
+
+        try:
+            response = requests.post(
+                "https://ai.comfly.chat/kling/v1/videos/video-extend",
+                headers=headers,
+                json=payload
+            )
+            response.raise_for_status()
+            result = response.json()
+
+            if result["code"] != 0:
+                raise Exception(f"API Error: {result['message']}")
+
+            task_id = result["data"]["task_id"]
+            pbar = comfy.utils.ProgressBar(100)
+
+            while True:
+                time.sleep(2)
+                status_response = requests.get(
+                    f"https://ai.comfly.chat/kling/v1/videos/video-extend/{task_id}",
+                    headers=headers
+                )
+                status_response.raise_for_status()
+                status_result = status_response.json()
+
+                if status_result["data"]["task_status"] == "succeed":
+                    video_url = status_result["data"]["task_result"]["videos"][0]["url"]
+                    new_video_id = status_result["data"]["task_result"]["videos"][0]["id"]
+                    video_path = self.download_video(video_url)
+                    return (video_path, new_video_id)
+                
+                elif status_result["data"]["task_status"] == "failed":
+                    raise Exception(f"Video extension failed: {status_result['data'].get('task_status_msg', 'Unknown error')}")
+
+                progress = 0
+                if status_result["data"]["task_status"] == "processing":
+                    progress = 50
+                elif status_result["data"]["task_status"] == "succeed":
+                    progress = 100
+                pbar.update_absolute(progress)
+
+        except Exception as e:
+            print(f"Error extending video: {str(e)}")
+            return ("", "")
+
+    def download_video(self, video_url):
+        input_path = folder_paths.get_output_directory()
+        video_filename = f"{str(uuid.uuid4())}.mp4"
+        video_path = os.path.join(input_path, video_filename)
+
+        response = requests.get(video_url, stream=True)
+        with open(video_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+
+        return video_path        
         
 class Comfly_kling_videoPreview:
     @classmethod
@@ -903,6 +1304,9 @@ NODE_CLASS_MAPPINGS = {
     "Comfly_upload": Comfly_upload,
     "Comfly_Mju": Comfly_Mju,
     "Comfly_Mjv": Comfly_Mjv,  
+    "Comfly_kling_text2video": Comfly_kling_text2video,
+    "Comfly_kling_image2video": Comfly_kling_image2video,
+    "Comfly_video_extend": Comfly_video_extend,        
     "Comfly_kling_videoPreview": Comfly_kling_videoPreview,   
 }
 
@@ -911,6 +1315,9 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_mjstyle": "Comfly_mjstyle",
     "Comfly_upload": "Comfly_upload",
     "Comfly_Mju": "Comfly_Mju",
-    "Comfly_Mjv": "Comfly_Mjv",  
+    "Comfly_Mjv": "Comfly_Mjv", 
+    "Comfly_kling_text2video": "Comfly_kling_text2video",
+    "Comfly_kling_image2video": "Comfly_kling_image2video",
+    "Comfly_video_extend": "Comfly_video_extend",
     "Comfly_kling_videoPreview": "Comfly_kling_videoPreview",  
 }
