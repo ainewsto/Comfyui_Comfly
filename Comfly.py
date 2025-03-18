@@ -1025,7 +1025,6 @@ class Comfly_kling_image2video:
         return {
             "required": {
                 "image": ("IMAGE",),
-                "image_tail": ("IMAGE",),
                 "prompt": ("STRING", {"multiline": True}),
                 "model_name": (["kling-v1-6", "kling-v1-5", "kling-v1"], {"default": "kling-v1-6"}),
                 "imagination": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.05}),
@@ -1037,6 +1036,7 @@ class Comfly_kling_image2video:
                 "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})
             },
             "optional": {
+                "image_tail": ("IMAGE",),
                 "camera": (["none", "horizontal", "vertical", "zoom", "vertical_shake", "horizontal_shake", 
                           "rotate", "master_down_zoom", "master_zoom_up", "master_right_rotate_zoom", 
                           "master_left_rotate_zoom"], {"default": "none"}),
@@ -1062,8 +1062,8 @@ class Comfly_kling_image2video:
             print(f"Error loading config file: {str(e)}")
             return {}
 
-    def generate_video(self, image, image_tail, prompt, model_name, imagination, aspect_ratio, mode, duration, 
-                      num_videos, negative_prompt="", camera="none", camera_value=0, seed=0):
+    def generate_video(self, image, prompt, model_name, imagination, aspect_ratio, mode, duration, 
+                      num_videos, negative_prompt="", camera="none", camera_value=0, seed=0, image_tail=None):
         if not self.api_key:
             raise ValueError("API key not found in Comflyapi.json")
 
@@ -1074,7 +1074,9 @@ class Comfly_kling_image2video:
             camera_json = self.get_camera_json("none", 0)
 
         image_base64 = self.image_to_base64(tensor2pil(image)[0])
-        image_tail_base64 = self.image_to_base64(tensor2pil(image_tail)[0])
+        image_tail_base64 = ""
+        if image_tail is not None:
+            image_tail_base64 = self.image_to_base64(tensor2pil(image_tail)[0])
 
         payload = {
             "prompt": prompt,
