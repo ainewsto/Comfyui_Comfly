@@ -27,8 +27,18 @@
 
 # 更新 Update：
 
+20250319：`Gemmi节点`: 新增谷歌ComflyGeminiAPI节点，gemini-2.0-flash-exp-image多模态模型。
+目前只支持简单的单图输入和输出，图片回复，图片编辑.
+<details>
+<summary>查看更新/Update </summary>  
+ 
+![微信图片_20250319214344](https://github.com/user-attachments/assets/4ef9216d-1a27-4b71-a5f9-ad4ef4bfc7eb)
+
+
+</details> 
+
 20250318：`kling节点`: 新增可灵文生视频，图生视频，视频延长（只支持v1.0模型）3个节点.
-可灵视频生成时间大概要5-6分钟左右，使用的是https://ai.comfly.chat的api key。
+可灵视频生成时间大概要5-6分钟左右，使用的是 https://ai.comfly.chat 的 api key.
 <details>
 <summary>查看更新/Update </summary>  
  
