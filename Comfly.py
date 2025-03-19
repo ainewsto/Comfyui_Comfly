@@ -1297,6 +1297,167 @@ class Comfly_kling_videoPreview:
         return {"ui":{"video":[video_name,video_path_name]}}
 
 
+############################# Gemini ###########################
+
+class ComflyGeminiAPI:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "model": ("STRING", {"default": "gemini-2.0-flash-exp-image", "placeholder": "Enter model name"}),
+                "temperature": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
+                "top_p": ("FLOAT", {"default": 0.95, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
+            },
+            "optional": {
+                "image": ("IMAGE",),  
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("image", "response")
+    FUNCTION = "process"
+    CATEGORY = "Comfly/Comfly_Gemini"
+
+    def __init__(self):
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        config_file_path = os.path.join(current_dir, 'Comflyapi.json')
+        
+        with open(config_file_path, 'r') as f:
+            api_config = json.load(f)
+            
+        self.api_key = api_config.get('api_key', '')
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+
+    def image_to_base64(self, image):
+        buffered = BytesIO()
+        image.save(buffered, format="PNG")
+        return base64.b64encode(buffered.getvalue()).decode('utf-8')
+    
+    def base64_to_image(self, base64_str):
+        # Remove data URL header if present
+        if "base64," in base64_str:
+            base64_str = base64_str.split("base64,")[1]
+        
+        # Decode base64 to image
+        image_data = base64.b64decode(base64_str)
+        image = Image.open(BytesIO(image_data))
+        return image
+
+    def extract_base64_images(self, response_text):
+        # Extract base64 image data from response
+        base64_pattern = r'data:image/[^;]+;base64,([a-zA-Z0-9+/=]+)'
+        matches = re.findall(base64_pattern, response_text)
+        return matches
+
+    def format_response(self, raw_response, model_name, timestamp, num_images=0):
+        """Format the response with model info and timestamp"""
+        # Clean response to remove base64 data
+        clean_response = re.sub(r'data:image/[^;]+;base64,[a-zA-Z0-9+/=]+', '[Image]', raw_response)
+        
+        header = f"**Model**: {model_name}\n**Time**: {timestamp}\n"
+        if num_images > 0:
+            header += f"**Generated Images**: {num_images}\n"
+        header += "\n"
+        
+        return header + clean_response
+
+    def process(self, prompt, model, temperature, top_p, seed, image=None):
+        try:
+            # Get current timestamp for response formatting
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            
+            # Prepare message content (always includes text)
+            content = [{"type": "text", "text": prompt}]
+            
+            # Add image to content if provided
+            if image is not None:
+                # Convert tensor to PIL image
+                pil_image = tensor2pil(image)[0]
+                image_base64 = self.image_to_base64(pil_image)
+                content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_base64}"}})
+            
+            # Create API payload
+            payload = {
+                "model": model,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": content
+                    }
+                ],
+                "temperature": temperature,
+                "top_p": top_p,
+                "seed": seed if seed > 0 else None,
+                "max_tokens": 8192
+            }
+            
+            # Make API request with progress bar
+            pbar = comfy.utils.ProgressBar(2)
+            pbar.update(0)
+            
+            response = requests.post(
+                "https://ai.comfly.chat/v1/chat/completions",
+                headers=self.get_headers(),
+                json=payload
+            )
+            response.raise_for_status()
+            result = response.json()
+            
+            pbar.update(1)
+            
+            # Extract response text
+            response_text = result["choices"][0]["message"]["content"]
+            
+            # Extract base64 images if present
+            base64_images = self.extract_base64_images(response_text)
+            
+            if base64_images:
+                # Use first base64 image to create the image output
+                try:
+                    result_image = self.base64_to_image(base64_images[0])
+                    result_tensor = pil2tensor(result_image)
+                    
+                    # Format response text without the base64 data
+                    formatted_response = self.format_response(response_text, model, timestamp, len(base64_images))
+                    
+                    return (result_tensor, formatted_response)
+                except Exception as e:
+                    print(f"Error processing base64 image: {str(e)}")
+            
+            pbar.update(2)
+            
+            # If no base64 images found, return appropriate response
+            formatted_response = self.format_response(response_text, model, timestamp)
+            
+            # Return appropriate response based on input
+            if image is not None:
+                # If input image was provided, return it with the text response
+                return (image, formatted_response)
+            else:
+                # If no input image, create a blank default image
+                default_image = Image.new('RGB', (512, 512), color='white')
+                default_tensor = pil2tensor(default_image)
+                return (default_tensor, formatted_response)
+            
+        except Exception as e:
+            error_message = f"Error calling Gemini API: {str(e)}"
+            print(error_message)
+            
+            # Handle errors with appropriate image output
+            if image is not None:
+                return (image, error_message)
+            else:
+                default_image = Image.new('RGB', (512, 512), color='white')
+                default_tensor = pil2tensor(default_image)
+                return (default_tensor, error_message)
+
 
 WEB_DIRECTORY = "./web"    
         
@@ -1309,7 +1470,8 @@ NODE_CLASS_MAPPINGS = {
     "Comfly_kling_text2video": Comfly_kling_text2video,
     "Comfly_kling_image2video": Comfly_kling_image2video,
     "Comfly_video_extend": Comfly_video_extend,        
-    "Comfly_kling_videoPreview": Comfly_kling_videoPreview,   
+    "Comfly_kling_videoPreview": Comfly_kling_videoPreview, 
+    "ComflyGeminiAPI": ComflyGeminiAPI,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1322,4 +1484,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_kling_image2video": "Comfly_kling_image2video",
     "Comfly_video_extend": "Comfly_video_extend",
     "Comfly_kling_videoPreview": "Comfly_kling_videoPreview",  
+    "ComflyGeminiAPI": "Comfly Gemini API",
 }
