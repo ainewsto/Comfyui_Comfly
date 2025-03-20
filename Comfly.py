@@ -1339,34 +1339,26 @@ class ComflyGeminiAPI:
         buffered = BytesIO()
         image.save(buffered, format="PNG")
         return base64.b64encode(buffered.getvalue()).decode('utf-8')
-    
-    def base64_to_image(self, base64_str):
-        # Remove data URL header if present
-        if "base64," in base64_str:
-            base64_str = base64_str.split("base64,")[1]
+
+    def extract_image_url(self, response_text):
+        # Extract URL from markdown image format: ![description](url)
+        image_pattern = r'!\[.*?\]\((.*?)\)'
+        matches = re.findall(image_pattern, response_text)
+        if matches:
+            return matches[0]
         
-        # Decode base64 to image
-        image_data = base64.b64decode(base64_str)
-        image = Image.open(BytesIO(image_data))
-        return image
+        # Extract raw URLs that look like image links
+        url_pattern = r'https?://\S+\.(?:jpg|jpeg|png|gif|webp)'
+        matches = re.findall(url_pattern, response_text)
+        if matches:
+            return matches[0]
+            
+        return None
 
-    def extract_base64_images(self, response_text):
-        # Extract base64 image data from response
-        base64_pattern = r'data:image/[^;]+;base64,([a-zA-Z0-9+/=]+)'
-        matches = re.findall(base64_pattern, response_text)
-        return matches
-
-    def format_response(self, raw_response, model_name, timestamp, num_images=0):
+    def format_response(self, raw_response, model_name, timestamp):
         """Format the response with model info and timestamp"""
-        # Clean response to remove base64 data
-        clean_response = re.sub(r'data:image/[^;]+;base64,[a-zA-Z0-9+/=]+', '[Image]', raw_response)
-        
-        header = f"**Model**: {model_name}\n**Time**: {timestamp}\n"
-        if num_images > 0:
-            header += f"**Generated Images**: {num_images}\n"
-        header += "\n"
-        
-        return header + clean_response
+        header = f"**Model**: {model_name}\n**Time**: {timestamp}\n\n"
+        return header + raw_response
 
     def process(self, prompt, model, temperature, top_p, seed, image=None):
         try:
@@ -1395,7 +1387,7 @@ class ComflyGeminiAPI:
                 "temperature": temperature,
                 "top_p": top_p,
                 "seed": seed if seed > 0 else None,
-                "max_tokens": 8192
+                "max_tokens": 4096
             }
             
             # Make API request with progress bar
@@ -1415,26 +1407,24 @@ class ComflyGeminiAPI:
             # Extract response text
             response_text = result["choices"][0]["message"]["content"]
             
-            # Extract base64 images if present
-            base64_images = self.extract_base64_images(response_text)
+            # Format the response with model and timestamp
+            formatted_response = self.format_response(response_text, model, timestamp)
             
-            if base64_images:
-                # Use first base64 image to create the image output
+            # Check if response contains an image URL
+            image_url = self.extract_image_url(response_text)
+            
+            if image_url:
                 try:
-                    result_image = self.base64_to_image(base64_images[0])
+                    # Download and process image from URL
+                    img_response = requests.get(image_url)
+                    img_response.raise_for_status()
+                    result_image = Image.open(BytesIO(img_response.content))
                     result_tensor = pil2tensor(result_image)
-                    
-                    # Format response text without the base64 data
-                    formatted_response = self.format_response(response_text, model, timestamp, len(base64_images))
-                    
                     return (result_tensor, formatted_response)
                 except Exception as e:
-                    print(f"Error processing base64 image: {str(e)}")
+                    print(f"Error processing image URL: {str(e)}")
             
             pbar.update(2)
-            
-            # If no base64 images found, return appropriate response
-            formatted_response = self.format_response(response_text, model, timestamp)
             
             # Return appropriate response based on input
             if image is not None:
