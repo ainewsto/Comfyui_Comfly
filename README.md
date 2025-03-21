@@ -32,8 +32,7 @@
 <details>
 <summary>查看更新/Update </summary>  
  
-![alt text](微信图片_20250321225149.png)
-
+![微信图片_20250321225149](https://github.com/user-attachments/assets/593f479b-51d5-476e-bcf7-f36c4f01eb29)
 
 </details> 
 
