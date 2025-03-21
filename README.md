@@ -27,6 +27,16 @@
 
 # 更新 Update：
 
+20250321：`Gemmi节点`: 谷歌ComflyGeminiAPI节点支持生成文生多图（最多4张，控制时间）。
+支持多图片参考，我是借用google labs的whisk思路，我感觉比较实用，并不需要太多参考图，3种足够.无需谷歌账户和梯子魔法就能用。使用的是 https://ai.comfly.chat 的 api key
+<details>
+<summary>查看更新/Update </summary>  
+ 
+![alt text](微信图片_20250321225149.png)
+
+
+</details> 
+
 20250319：`Gemmi节点`: 新增谷歌ComflyGeminiAPI节点，gemini-2.0-flash-exp-image多模态模型。
 目前只支持简单的单图输入和输出，图片回复，图片编辑.
 <details>

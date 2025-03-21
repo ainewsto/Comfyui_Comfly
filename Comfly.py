@@ -1306,17 +1306,31 @@ class ComflyGeminiAPI:
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
                 "model": ("STRING", {"default": "gemini-2.0-flash-exp-image", "placeholder": "Enter model name"}),
+                "resolution": (
+                    [
+                        "512x512", 
+                        "768x768", 
+                        "1024x1024", 
+                        "1280x1280", 
+                        "1536x1536", 
+                        "2048x2048"
+                    ], 
+                    {"default": "1024x1024"}
+                ),
+                "num_images": ("INT", {"default": 1, "min": 1, "max": 4, "step": 1}),
                 "temperature": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
                 "top_p": ("FLOAT", {"default": 0.95, "min": 0.0, "max": 1.0, "step": 0.01}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
             },
             "optional": {
-                "image": ("IMAGE",),  
+                "object_image": ("IMAGE",),  
+                "subject_image": ("IMAGE",),
+                "scene_image": ("IMAGE",),
             }
         }
 
     RETURN_TYPES = ("IMAGE", "STRING")
-    RETURN_NAMES = ("image", "response")
+    RETURN_NAMES = ("generated_images", "response")
     FUNCTION = "process"
     CATEGORY = "Comfly/Comfly_Gemini"
 
@@ -1328,6 +1342,7 @@ class ComflyGeminiAPI:
             api_config = json.load(f)
             
         self.api_key = api_config.get('api_key', '')
+        self.timeout = 90  # 1 minute 30 seconds timeout
 
     def get_headers(self):
         return {
@@ -1340,113 +1355,230 @@ class ComflyGeminiAPI:
         image.save(buffered, format="PNG")
         return base64.b64encode(buffered.getvalue()).decode('utf-8')
 
-    def extract_image_url(self, response_text):
-        # Extract URL from markdown image format: ![description](url)
+    def extract_image_urls(self, response_text):
+        # Extract URLs from markdown image format: ![description](url)
         image_pattern = r'!\[.*?\]\((.*?)\)'
         matches = re.findall(image_pattern, response_text)
-        if matches:
-            return matches[0]
         
-        # Extract raw URLs that look like image links
-        url_pattern = r'https?://\S+\.(?:jpg|jpeg|png|gif|webp)'
-        matches = re.findall(url_pattern, response_text)
-        if matches:
-            return matches[0]
+        # If no markdown format found, extract raw URLs that look like image links
+        if not matches:
+            url_pattern = r'https?://\S+\.(?:jpg|jpeg|png|gif|webp)'
+            matches = re.findall(url_pattern, response_text)
             
-        return None
+        return matches if matches else []
 
-    def format_response(self, raw_response, model_name, timestamp):
-        """Format the response with model info and timestamp"""
-        header = f"**Model**: {model_name}\n**Time**: {timestamp}\n\n"
-        return header + raw_response
+    def resize_to_target_size(self, image, target_size):
+        """Resize image to target size while preserving aspect ratio with padding"""
+        # Convert PIL image to target size
+        img_width, img_height = image.size
+        target_width, target_height = target_size
+        
+        # Calculate the scaling factor to fit the image within the target size
+        width_ratio = target_width / img_width
+        height_ratio = target_height / img_height
+        scale = min(width_ratio, height_ratio)
+        
+        # Calculate new dimensions
+        new_width = int(img_width * scale)
+        new_height = int(img_height * scale)
+        
+        # Resize the image
+        resized_img = image.resize((new_width, new_height), Image.LANCZOS)
+        
+        # Create a new blank image with the target size
+        new_img = Image.new("RGB", (target_width, target_height), (255, 255, 255))
+        
+        # Calculate position to paste the resized image
+        paste_x = (target_width - new_width) // 2
+        paste_y = (target_height - new_height) // 2
+        
+        # Paste the resized image
+        new_img.paste(resized_img, (paste_x, paste_y))
+        
+        return new_img
 
-    def process(self, prompt, model, temperature, top_p, seed, image=None):
+    def parse_resolution(self, resolution_str):
+        """Parse resolution string (e.g., '1024x1024') to width and height"""
+        width, height = map(int, resolution_str.split('x'))
+        return (width, height)
+
+    def process(self, prompt, model, resolution, num_images, temperature, top_p, seed, 
+                object_image=None, subject_image=None, scene_image=None):
         try:
-            # Get current timestamp for response formatting
+            # Get current timestamp for formatting
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
             
-            # Prepare message content (always includes text)
-            content = [{"type": "text", "text": prompt}]
+            # Parse resolution string to get target size
+            target_size = self.parse_resolution(resolution)
             
-            # Add image to content if provided
-            if image is not None:
-                # Convert tensor to PIL image
-                pil_image = tensor2pil(image)[0]
-                image_base64 = self.image_to_base64(pil_image)
-                content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_base64}"}})
+            # Check if we have image inputs
+            has_images = object_image is not None or subject_image is not None or scene_image is not None
+            
+            # Prepare message content
+            content = []
+            
+            # Build different prompts and content based on input type
+            if has_images:
+                # When we have image inputs, use the original prompt without enhancements
+                content.append({"type": "text", "text": prompt})
+                
+                # Prepare descriptions for each image type
+                image_descriptions = {
+                    "object_image": "an object or item",
+                    "subject_image": "a subject or character",
+                    "scene_image": "a scene or environment"
+                }
+                
+                # Add available images to content
+                for image_var, image_tensor in [("object_image", object_image), 
+                                             ("subject_image", subject_image), 
+                                             ("scene_image", scene_image)]:
+                    if image_tensor is not None:
+                        # Convert tensor to PIL image
+                        pil_image = tensor2pil(image_tensor)[0]
+                        image_base64 = self.image_to_base64(pil_image)
+                        content.append({
+                            "type": "image_url", 
+                            "image_url": {"url": f"data:image/png;base64,{image_base64}"}
+                        })
+            else:
+                # When we only have text input, add enhanced prompt
+                if num_images == 1:
+                    enhanced_prompt = f"Generate a high-quality, detailed image in square format (1:1 aspect ratio) with dimensions {resolution}. Based on this description: {prompt}"
+                else:
+                    enhanced_prompt = f"Generate {num_images} DIFFERENT high-quality images with VARIED content, each with unique and distinct visual elements, but all in square format (1:1 aspect ratio) and all having the exact same dimensions of {resolution}. Important: make sure each image has different content but maintains the same technical dimensions. Based on this description: {prompt}"
+                
+                content.append({"type": "text", "text": enhanced_prompt})
+            
+            # Create messages
+            messages = [{
+                "role": "user",
+                "content": content
+            }]
             
             # Create API payload
             payload = {
                 "model": model,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": content
-                    }
-                ],
+                "messages": messages,
                 "temperature": temperature,
                 "top_p": top_p,
                 "seed": seed if seed > 0 else None,
-                "max_tokens": 4096
+                "max_tokens": 8192
             }
             
             # Make API request with progress bar
-            pbar = comfy.utils.ProgressBar(2)
-            pbar.update(0)
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(10)
             
-            response = requests.post(
-                "https://ai.comfly.chat/v1/chat/completions",
-                headers=self.get_headers(),
-                json=payload
-            )
-            response.raise_for_status()
-            result = response.json()
+            # Make API request with timeout
+            try:
+                response = requests.post(
+                    "https://ai.comfly.chat/v1/chat/completions",
+                    headers=self.get_headers(),
+                    json=payload,
+                    timeout=self.timeout
+                )
+                response.raise_for_status()
+                result = response.json()
+            except requests.exceptions.Timeout:
+                raise TimeoutError(f"API request timed out after {self.timeout} seconds")
+            except requests.exceptions.RequestException as e:
+                raise Exception(f"API request failed: {str(e)}")
             
-            pbar.update(1)
+            pbar.update_absolute(40)
             
             # Extract response text
             response_text = result["choices"][0]["message"]["content"]
             
-            # Format the response with model and timestamp
-            formatted_response = self.format_response(response_text, model, timestamp)
+            # Format the response
+            formatted_response = f"**User prompt**: {prompt}\n\n**Response** ({timestamp}):\n{response_text}"
             
-            # Check if response contains an image URL
-            image_url = self.extract_image_url(response_text)
+            # Check if response contains image URLs
+            image_urls = self.extract_image_urls(response_text)
             
-            if image_url:
+            if image_urls:
                 try:
-                    # Download and process image from URL
-                    img_response = requests.get(image_url)
-                    img_response.raise_for_status()
-                    result_image = Image.open(BytesIO(img_response.content))
-                    result_tensor = pil2tensor(result_image)
-                    return (result_tensor, formatted_response)
+                    # Process all images from URLs
+                    images = []
+                    for i, url in enumerate(image_urls):
+                        pbar.update_absolute(40 + (i+1) * 50 // len(image_urls))
+                        
+                        try:
+                            img_response = requests.get(url, timeout=self.timeout)
+                            img_response.raise_for_status()
+                            pil_image = Image.open(BytesIO(img_response.content))
+                            
+                            # Always resize the image to the target size to ensure consistency
+                            resized_image = self.resize_to_target_size(pil_image, target_size)
+                            
+                            # Convert to tensor
+                            img_tensor = pil2tensor(resized_image)
+                            images.append(img_tensor)
+                            
+                        except Exception as img_error:
+                            print(f"Error processing image URL {i+1}: {str(img_error)}")
+                            # Continue to next image if there's an error with this one
+                            continue
+                    
+                    if images:
+                        # Since we've resized all images to the same target size, torch.cat should work
+                        combined_tensor = torch.cat(images, dim=0)
+                        pbar.update_absolute(100)
+                        return (combined_tensor, formatted_response)
+                    else:
+                        # If no images were successfully processed
+                        raise Exception("No images could be processed successfully")
+                    
                 except Exception as e:
-                    print(f"Error processing image URL: {str(e)}")
+                    print(f"Error processing image URLs: {str(e)}")
             
-            pbar.update(2)
+            # Return appropriate response if no image URLs were found
+            pbar.update_absolute(100)
             
-            # Return appropriate response based on input
-            if image is not None:
-                # If input image was provided, return it with the text response
-                return (image, formatted_response)
+            # Determine which image to return in case of no output images
+            reference_image = None
+            if object_image is not None:
+                reference_image = object_image
+            elif subject_image is not None:
+                reference_image = subject_image
+            elif scene_image is not None:
+                reference_image = scene_image
+                
+            if reference_image is not None:
+                # If any input image was provided, return the first available one with the text response
+                return (reference_image, formatted_response)
             else:
-                # If no input image, create a blank default image
-                default_image = Image.new('RGB', (512, 512), color='white')
+                # Create a default blank image with the target size
+                default_image = Image.new('RGB', target_size, color='white')
                 default_tensor = pil2tensor(default_image)
                 return (default_tensor, formatted_response)
+            
+        except TimeoutError as e:
+            error_message = f"API timeout error: {str(e)}"
+            print(error_message)
+            return self.handle_error(object_image, subject_image, scene_image, error_message, resolution)
             
         except Exception as e:
             error_message = f"Error calling Gemini API: {str(e)}"
             print(error_message)
+            return self.handle_error(object_image, subject_image, scene_image, error_message, resolution)
+    
+    def handle_error(self, object_image, subject_image, scene_image, error_message, resolution="1024x1024"):
+        """Handle errors with appropriate image output"""
+        # Return the first available image if any
+        if object_image is not None:
+            return (object_image, error_message)
+        elif subject_image is not None:
+            return (subject_image, error_message)
+        elif scene_image is not None:
+            return (scene_image, error_message)
+        else:
+            # Create an error image with the specified resolution
+            target_size = self.parse_resolution(resolution)
+            default_image = Image.new('RGB', target_size, color='white')
+            default_tensor = pil2tensor(default_image)
+            return (default_tensor, error_message)
             
-            # Handle errors with appropriate image output
-            if image is not None:
-                return (image, error_message)
-            else:
-                default_image = Image.new('RGB', (512, 512), color='white')
-                default_tensor = pil2tensor(default_image)
-                return (default_tensor, error_message)
 
 
 WEB_DIRECTORY = "./web"    
