@@ -1,84 +1,17 @@
 {
-  "last_node_id": 16,
-  "last_link_id": 15,
+  "last_node_id": 5,
+  "last_link_id": 4,
   "nodes": [
     {
-      "id": 4,
-      "type": "ShowText|pysssss",
-      "pos": [
-        884.8329467773438,
-        -50.639305114746094
-      ],
-      "size": [
-        423.8132019042969,
-        476.9954528808594
-      ],
-      "flags": {},
-      "order": 3,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "text",
-          "type": "STRING",
-          "link": 14,
-          "widget": {
-            "name": "text"
-          }
-        }
-      ],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": null,
-          "shape": 6
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "ShowText|pysssss"
-      },
-      "widgets_values": [
-        "",
-        "**Model**: gemini-2.0-flash-exp-image\n**Time**: 2025-03-19 21:36:03\n**Generated Images**: 1\n\n![Image_0]([Image])"
-      ]
-    },
-    {
-      "id": 3,
-      "type": "PreviewImage",
-      "pos": [
-        384.95880126953125,
-        -53.44512939453125
-      ],
-      "size": [
-        477.8179931640625,
-        477.5992736816406
-      ],
-      "flags": {},
-      "order": 2,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "link": 13
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "Node name for S&R": "PreviewImage"
-      },
-      "widgets_values": []
-    },
-    {
-      "id": 16,
+      "id": 2,
       "type": "LoadImage",
       "pos": [
-        -393.11895751953125,
-        -53.18408966064453
+        -694.7574462890625,
+        -3232.098388671875
       ],
       "size": [
-        337.36077880859375,
-        501.017578125
+        315,
+        314
       ],
       "flags": {},
       "order": 0,
@@ -89,7 +22,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            15
+            1
           ]
         },
         {
@@ -99,41 +32,167 @@
         }
       ],
       "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "ComfyUI_temp_cqaav_00005_.png",
+        "1.jpg",
         "image"
       ]
     },
     {
-      "id": 15,
-      "type": "ComflyGeminiAPI",
+      "id": 5,
+      "type": "ShowText|pysssss",
       "pos": [
-        -24.75394630432129,
-        -51.9554443359375
+        -299.1976013183594,
+        -3423.918212890625
       ],
       "size": [
-        379.46875,
-        298.77459716796875
+        315,
+        100
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "shape": 6,
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-custom-scripts",
+        "ver": "2c09d59ab5ac27ac59022832bfde4eeeb9c55825",
+        "Node name for S&R": "ShowText|pysssss"
+      },
+      "widgets_values": [
+        "",
+        "https://oss.ffire.cc/cdn/2025-03-25/gSQ8bUrVtykXaKsTzsUxve.png"
+      ]
+    },
+    {
+      "id": 3,
+      "type": "PreviewImage",
+      "pos": [
+        111.88241577148438,
+        -3226.768310546875
+      ],
+      "size": [
+        228,
+        304
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 2
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 4,
+      "type": "ShowText|pysssss",
+      "pos": [
+        379.5123596191406,
+        -3225.048583984375
+      ],
+      "size": [
+        386.5,
+        297.20001220703125
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "shape": 6,
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-custom-scripts",
+        "ver": "2c09d59ab5ac27ac59022832bfde4eeeb9c55825",
+        "Node name for S&R": "ShowText|pysssss"
+      },
+      "widgets_values": [
+        "",
+        "**User prompt**: 把背景换成海洋背景\n\n**Response** (2025-03-25 13:22:18):\n![Image_0](https://oss.ffire.cc/cdn/2025-03-25/gSQ8bUrVtykXaKsTzsUxve.png)"
+      ]
+    },
+    {
+      "id": 1,
+      "type": "ComflyGeminiAPI",
+      "pos": [
+        -336.70770263671875,
+        -3221.64990234375
+      ],
+      "size": [
+        400,
+        296
       ],
       "flags": {},
       "order": 1,
       "mode": 0,
       "inputs": [
         {
-          "name": "image",
+          "name": "object_image",
           "type": "IMAGE",
-          "link": 15,
-          "shape": 7
+          "shape": 7,
+          "link": 1
+        },
+        {
+          "name": "subject_image",
+          "type": "IMAGE",
+          "shape": 7,
+          "link": null
+        },
+        {
+          "name": "scene_image",
+          "type": "IMAGE",
+          "shape": 7,
+          "link": null
         }
       ],
       "outputs": [
         {
-          "name": "image",
+          "name": "generated_images",
           "type": "IMAGE",
           "links": [
-            13
+            2
           ],
           "slot_index": 0
         },
@@ -141,58 +200,78 @@
           "name": "response",
           "type": "STRING",
           "links": [
-            14
+            3
           ],
           "slot_index": 1
+        },
+        {
+          "name": "image_url",
+          "type": "STRING",
+          "links": [
+            4
+          ],
+          "slot_index": 2
         }
       ],
       "properties": {
+        "cnr_id": "Comfyui_Comfly",
+        "ver": "2929caa9b2742aae0b66cb7b3dd69355a8af46b4\n",
         "Node name for S&R": "ComflyGeminiAPI"
       },
       "widgets_values": [
-        "给黑猫加个白色眼镜",
+        "把背景换成海洋背景",
         "gemini-2.0-flash-exp-image",
+        "object_image size",
+        1,
         1,
         0.95,
-        134032530,
+        467600140,
         "randomize"
       ]
     }
   ],
   "links": [
     [
-      13,
-      15,
+      1,
+      2,
+      0,
+      1,
+      0,
+      "IMAGE"
+    ],
+    [
+      2,
+      1,
       0,
       3,
       0,
       "IMAGE"
     ],
     [
-      14,
-      15,
+      3,
+      1,
       1,
       4,
       0,
       "STRING"
     ],
     [
-      15,
-      16,
+      4,
+      1,
+      2,
+      5,
       0,
-      15,
-      0,
-      "IMAGE"
+      "STRING"
     ]
   ],
   "groups": [],
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.6209213230591552,
+      "scale": 0.9090909090909091,
       "offset": [
-        638.2648587008821,
-        306.0292197253186
+        886.3175936029033,
+        3574.2588311438362
       ]
     }
   },

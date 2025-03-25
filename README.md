@@ -27,6 +27,38 @@
 
 # 更新 Update：
 
+20250325：
+`Gemmi节点`: ComflyGeminiAPI节点resolution新增：object_image size,subject_image size,scene_image size根据输入的图片的尺寸来确定输出图片的尺寸。增加image url输出接口。
+
+`Doubao豆包节点`: ComflySeededit节点文字驱动生成图片，编辑图片。支持添加自己的水印logo。目前只支持单图修改和参考。
+
+用于编辑图像的提示词 。建议：
+
+添加/删除实体：添加/删除xxx（删除图上的女孩/添加一道彩虹）
+
+修改实体：把xxx改成xxx（把手里的鸡腿变成汉堡）
+
+修改风格：改成xxx风格（改成漫画风格）
+
+修改色彩：把xxx改成xx颜色（把衣服改成粉色的）
+
+修改动作：修改表情动作（让他哭/笑/生气）
+
+修改环境背景：背景换成xxx，在xxx（背景换成海边/在星空下）
+
+1：图片格式：JPG(JPEG), PNG, BMP 等常见格式, 建议使用JPG格式.
+
+2：图片要求：小于4.7 MB，小于4096*4096
+
+3：长边与短边比例在3以内，超出此比例或比例相对极端，会导致报错
+
+<details>
+
+<summary>查看更新/Update </summary>
+
+
+</details>
+
 20250321：`Gemmi节点`: 谷歌ComflyGeminiAPI节点支持生成文生多图（最多4张，控制时间）。
 支持多图片参考，我是借用google labs的whisk思路，我感觉比较实用，并不需要太多参考图，3种足够.无需谷歌账户和梯子魔法就能用。使用的是 https://ai.comfly.chat 的 api key
 <details>

@@ -1,4 +1,5 @@
 import os
+import torch
 import requests
 import time
 from PIL import Image
@@ -32,6 +33,7 @@ class ComflyBaseNode:
         }
         self.api_key = api_config.get('api_key', '') 
         self.speed = "fast mode"
+        self.timeout = 300 
 
     def set_speed(self, speed):
         self.speed = speed
@@ -51,16 +53,20 @@ class ComflyBaseNode:
             "customId": custom_id,
             "taskId": taskId
         }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/action", headers=headers, json=payload) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data
-                else:
-                    error_message = f"Error submitting Midjourney action: {response.status}"
-                    print(error_message)
-                    return error_message
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/action", headers=headers, json=payload, timeout=self.timeout) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return data
+                    else:
+                        error_message = f"Error submitting Midjourney action: {response.status}"
+                        print(error_message)
+                        return error_message
+        except asyncio.TimeoutError:
+            error_message = f"Timeout error: Request to submit action timed out after {self.timeout} seconds"
+            print(error_message)
+            raise Exception(error_message)
 
     def extract_taskId(self, U, action, index):
         pattern = fr'"customId": "MJ::JOB::{action}::{index}::(.*?)"'
@@ -96,32 +102,39 @@ class ComflyBaseNode:
             "sv": sv,
             "seed": seed
         }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/imagine", headers=headers, json=payload) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data["result"]
-                else:
-                    error_message = f"Error submitting Midjourney task: {response.status}"
-                    print(error_message)
-                    raise Exception(error_message)
-
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/imagine", headers=headers, json=payload, timeout=self.timeout) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return data["result"]
+                    else:
+                        error_message = f"Error submitting Midjourney task: {response.status}"
+                        print(error_message)
+                        raise Exception(error_message)
+        except asyncio.TimeoutError:
+            error_message = f"Timeout error: Request to submit imagine task timed out after {self.timeout} seconds"
+            print(error_message)
+            raise Exception(error_message)
     async def midjourney_fetch_task_result(self, taskId):
         headers = {
             "Content-Type": "application/json",
             "Authorization": "Bearer " + self.api_key
         }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{self.midjourney_api_url[self.speed]}/mj/task/{taskId}/fetch", headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data
-                else:
-                    error_message = f"Error fetching Midjourney task result: {response.status}"
-                    print(error_message)
-                    raise Exception(error_message)
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{self.midjourney_api_url[self.speed]}/mj/task/{taskId}/fetch", headers=headers, timeout=self.timeout) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return data
+                    else:
+                        error_message = f"Error fetching Midjourney task result: {response.status}"
+                        print(error_message)
+                        raise Exception(error_message)
+        except asyncio.TimeoutError:
+            error_message = f"Timeout error: Request to fetch task result timed out after {self.timeout} seconds"
+            print(error_message)
+            raise Exception(error_message)
 
 
 
@@ -154,33 +167,35 @@ class Comfly_upload(ComflyBaseNode):
     async def upload_image_to_midjourney(self, image):
         # Convert Tensor to PIL Image
         image = tensor2pil(image)[0]
-
         # Encode the image as base64
         buffered = BytesIO()
         image_format = "PNG"  # Specify the desired image format
         image.save(buffered, format=image_format)
         image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-
         # Prepare the request payload
         payload = {
             "base64Array": [f"data:image/{image_format.lower()};base64,{image_base64}"],
             "instanceId": "",
             "notifyHook": ""
         }
-
         # Send the POST request to upload the image
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/upload-discord-images", headers=self.get_headers(), json=payload) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    if "result" in data and data["result"]:
-                        return data["result"][0]
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/upload-discord-images", headers=self.get_headers(), json=payload, timeout=self.timeout) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if "result" in data and data["result"]:
+                            return data["result"][0]
+                        else:
+                            error_message = f"Unexpected response from Midjourney API: {data}"
+                            raise Exception(error_message)
                     else:
-                        error_message = f"Unexpected response from Midjourney API: {data}"
+                        error_message = f"Error uploading image to Midjourney: {response.status}"
                         raise Exception(error_message)
-                else:
-                    error_message = f"Error uploading image to Midjourney: {response.status}"
-                    raise Exception(error_message)
+        except asyncio.TimeoutError:
+            error_message = f"Timeout error: Request to upload image timed out after {self.timeout} seconds"
+            print(error_message)
+            raise Exception(error_message)
 
     def upload_image(self, image):
         try:
@@ -527,16 +542,20 @@ class Comfly_Mju(ComflyBaseNode):
             "customId": custom_id,
             "taskId": taskId
         }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/action", headers=headers, json=payload) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data
-                else:
-                    error_message = f"Error submitting Midjourney action: {response.status}"
-                    print(error_message)
-                    return error_message
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/action", headers=headers, json=payload, timeout=self.timeout) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return data
+                    else:
+                        error_message = f"Error submitting Midjourney action: {response.status}"
+                        print(error_message)
+                        return error_message
+        except asyncio.TimeoutError:
+            error_message = f"Timeout error: Request to submit action timed out after {self.timeout} seconds"
+            print(error_message)
+            raise Exception(error_message)
 
     async def midjourney_fetch_task_result(self, taskId):
         headers = self.get_headers()
@@ -578,33 +597,39 @@ class Comfly_Mju(ComflyBaseNode):
             "sv": sv,
             "seed": seed
         }
-
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/imagine", headers=headers, json=payload) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data["result"]
-                else:
-                    error_message = f"Error submitting Midjourney task: {response.status}"
-                    print(error_message)
-                    raise Exception(error_message)
-
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/imagine", headers=headers, json=payload, timeout=self.timeout) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return data["result"]
+                    else:
+                        error_message = f"Error submitting Midjourney task: {response.status}"
+                        print(error_message)
+                        raise Exception(error_message)
+        except asyncio.TimeoutError:
+            error_message = f"Timeout error: Request to submit imagine task timed out after {self.timeout} seconds"
+            print(error_message)
+            raise Exception(error_message)
     async def midjourney_fetch_task_result(self, taskId):
         headers = {
             "Content-Type": "application/json",
-            "Authorization": "Bearer " + self.api_key  
+            "Authorization": "Bearer " + self.api_key
         }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"{self.midjourney_api_url[self.speed]}/mj/task/{taskId}/fetch", headers=headers) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data
-                else:
-                    error_message = f"Error fetching Midjourney task result: {response.status}"
-                    print(error_message)
-                    raise Exception(error_message)
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{self.midjourney_api_url[self.speed]}/mj/task/{taskId}/fetch", headers=headers, timeout=self.timeout) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return data
+                    else:
+                        error_message = f"Error fetching Midjourney task result: {response.status}"
+                        print(error_message)
+                        raise Exception(error_message)
+        except asyncio.TimeoutError:
+            error_message = f"Timeout error: Request to fetch task result timed out after {self.timeout} seconds"
+            print(error_message)
+            raise Exception(error_message)
 
 
 class Comfly_Mjv(ComflyBaseNode):
@@ -1273,7 +1298,171 @@ class Comfly_video_extend:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
 
-        return video_path        
+        return video_path    
+
+
+class Comfly_lip_sync:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "video_id": ("STRING", {"default": "", "multiline": False, "forceInput": True}),
+                "voice_id": ("STRING", {"default": "", "forceInput": True}), 
+                "mode": (["text2video", "audio2video"], {"default": "text2video"}),
+                "text": ("STRING", {"multiline": True, "default": ""}),
+                "voice_language": (["zh", "en"], {"default": "zh"}),
+                "voice_speed": ("FLOAT", {"default": 1.0, "min": 0.8, "max": 2.0, "step": 0.1}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})
+            },
+            "optional": {
+                "video_url": ("STRING", {"default": ""}),
+                "audio_type": (["file", "url"], {"default": "file"}),
+                "audio_file": ("STRING", {"default": ""}),
+                "audio_url": ("STRING", {"default": ""})
+            }
+        }
+
+    RETURN_TYPES = ("VIDEO", "STRING", "STRING")
+    RETURN_NAMES = ("video", "video_url", "task_id")
+    FUNCTION = "process_lip_sync"
+    CATEGORY = "Comfly/Comfly_kling"
+
+    def __init__(self):
+        super().__init__()
+        self.api_key = self.load_config_file().get('api_key', '')
+
+    def load_config_file(self):
+        config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Comflyapi.json")
+        try:
+            with open(config_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"Error loading config file: {str(e)}")
+            return {}
+
+    def process_lip_sync(self, video_id, mode, text, voice_id, voice_language, voice_speed, seed=0,
+                        video_url="", audio_type="file", audio_file="", audio_url=""):
+        
+        if not self.api_key:
+            raise ValueError("API key not found in Comflyapi.json")
+
+        headers = {
+            "Content-Type": "application/json", 
+            "Authorization": f"Bearer {self.api_key}"
+        }
+
+        payload = {
+            "input": {
+                "mode": mode,
+                "video_id": video_id if video_id else None,
+                "video_url": video_url if video_url else None,
+                "text": text if mode == "text2video" else None,
+                "voice_id": voice_id if mode == "text2video" else None,
+                "voice_language": voice_language if mode == "text2video" else None,
+                "voice_speed": voice_speed if mode == "text2video" else None,
+                "audio_type": audio_type if mode == "audio2video" else None,
+                "audio_file": audio_file if mode == "audio2video" and audio_type == "file" else None,
+                "audio_url": audio_url if mode == "audio2video" and audio_type == "url" else None,
+                "seed": seed
+            }
+        }
+
+        try:
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(5)  
+            response = requests.post(
+                "https://ai.comfly.chat/kling/v1/videos/lip-sync",
+                headers=headers,
+                json=payload
+            )
+            response.raise_for_status()
+            result = response.json()
+
+            if result["code"] != 0:
+                raise Exception(f"API Error: {result['message']}")
+
+            task_id = result["data"]["task_id"]
+            pbar.update_absolute(10) 
+
+            while True:
+                time.sleep(2)
+                status_response = requests.get(
+                    f"https://ai.comfly.chat/kling/v1/videos/lip-sync/{task_id}",
+                    headers=headers
+                )
+                status_response.raise_for_status()
+                status_result = status_response.json()
+
+                if status_result["data"]["task_status"] == "processing":
+                    progress = status_result["data"].get("progress", 50)  
+                    pbar.update_absolute(progress)
+                elif status_result["data"]["task_status"] == "succeed":
+                    pbar.update_absolute(100)  
+                    video_url = status_result["data"]["task_result"]["videos"][0]["url"]
+                    video_path = self.download_video(video_url)
+                    return (video_path, video_url, task_id)
+                elif status_result["data"]["task_status"] == "failed":
+                    raise Exception(f"Lip sync failed: {status_result['data'].get('task_status_msg', 'Unknown error')}")
+
+        except Exception as e:
+            print(f"Error in lip sync process: {str(e)}")
+            return ("", "", "")
+
+    def download_video(self, video_url):
+        input_path = folder_paths.get_output_directory()
+        video_filename = f"{str(uuid.uuid4())}.mp4"
+        video_path = os.path.join(input_path, video_filename)
+
+        response = requests.get(video_url, stream=True)
+        with open(video_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+
+        return video_path
+
+
+class Comfly_voices:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {
+            "voice_type": (["中文音色", "英文音色"], {"default": "中文音色"})
+        }}  
+
+    RETURN_TYPES = ("STRING",)  
+    RETURN_NAMES = ("voice_id",)
+    FUNCTION = "get_voice_id"
+    CATEGORY = "Comfly/Comfly_kling"
+
+    def __init__(self):
+        self.selected_voice_id = None
+        
+    def get_voice_id(self, voice_type):
+        return (self.selected_voice_id or "",)
+
+
+class Comfly_kling_videoPreview:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required":{
+            "video":("VIDEO",),
+        }}
+    
+    CATEGORY = "Comfly/Comfly_kling"
+    DESCRIPTION = "Preview the generated video."
+
+    RETURN_TYPES = ()
+
+    OUTPUT_NODE = True
+
+    FUNCTION = "Preview_video"
+
+    def Preview_video(self, video):
+        video_name = os.path.basename(video)
+        video_path_name = os.path.basename(os.path.dirname(video))
+        return {"ui":{"video":[video_name,video_path_name]}}
+    
+    
+   
         
 class Comfly_kling_videoPreview:
     @classmethod
@@ -1313,7 +1502,10 @@ class ComflyGeminiAPI:
                         "1024x1024", 
                         "1280x1280", 
                         "1536x1536", 
-                        "2048x2048"
+                        "2048x2048",
+                        "object_image size",
+                        "subject_image size",
+                        "scene_image size"
                     ], 
                     {"default": "1024x1024"}
                 ),
@@ -1328,12 +1520,10 @@ class ComflyGeminiAPI:
                 "scene_image": ("IMAGE",),
             }
         }
-
-    RETURN_TYPES = ("IMAGE", "STRING")
-    RETURN_NAMES = ("generated_images", "response")
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING")
+    RETURN_NAMES = ("generated_images", "response", "image_url")
     FUNCTION = "process"
     CATEGORY = "Comfly/Comfly_Gemini"
-
     def __init__(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
         config_file_path = os.path.join(current_dir, 'Comflyapi.json')
@@ -1342,7 +1532,7 @@ class ComflyGeminiAPI:
             api_config = json.load(f)
             
         self.api_key = api_config.get('api_key', '')
-        self.timeout = 90  # 1 minute 30 seconds timeout
+        self.timeout = 120 
 
     def get_headers(self):
         return {
@@ -1408,8 +1598,22 @@ class ComflyGeminiAPI:
             # Get current timestamp for formatting
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
             
-            # Parse resolution string to get target size
-            target_size = self.parse_resolution(resolution)
+            # Get target size based on resolution or input images
+            target_size = None
+            
+            # Determine if we should use an input image's size
+            if resolution == "object_image size" and object_image is not None:
+                pil_image = tensor2pil(object_image)[0]
+                target_size = pil_image.size
+            elif resolution == "subject_image size" and subject_image is not None:
+                pil_image = tensor2pil(subject_image)[0]
+                target_size = pil_image.size
+            elif resolution == "scene_image size" and scene_image is not None:
+                pil_image = tensor2pil(scene_image)[0]
+                target_size = pil_image.size
+            else:
+                # Use the specified resolution
+                target_size = self.parse_resolution(resolution)
             
             # Check if we have image inputs
             has_images = object_image is not None or subject_image is not None or scene_image is not None
@@ -1443,10 +1647,14 @@ class ComflyGeminiAPI:
                         })
             else:
                 # When we only have text input, add enhanced prompt
+                # Get dimensions string from target_size
+                dimensions = f"{target_size[0]}x{target_size[1]}"
+                aspect_ratio = "1:1" if target_size[0] == target_size[1] else f"{target_size[0]}:{target_size[1]}"
+                
                 if num_images == 1:
-                    enhanced_prompt = f"Generate a high-quality, detailed image in square format (1:1 aspect ratio) with dimensions {resolution}. Based on this description: {prompt}"
+                    enhanced_prompt = f"Generate a high-quality, detailed image with dimensions {dimensions} and aspect ratio {aspect_ratio}. Based on this description: {prompt}"
                 else:
-                    enhanced_prompt = f"Generate {num_images} DIFFERENT high-quality images with VARIED content, each with unique and distinct visual elements, but all in square format (1:1 aspect ratio) and all having the exact same dimensions of {resolution}. Important: make sure each image has different content but maintains the same technical dimensions. Based on this description: {prompt}"
+                    enhanced_prompt = f"Generate {num_images} DIFFERENT high-quality images with VARIED content, each with unique and distinct visual elements, all having the exact same dimensions of {dimensions} and aspect ratio {aspect_ratio}. Important: make sure each image has different content but maintains the same technical dimensions. Based on this description: {prompt}"
                 
                 content.append({"type": "text", "text": enhanced_prompt})
             
@@ -1500,15 +1708,20 @@ class ComflyGeminiAPI:
                 try:
                     # Process all images from URLs
                     images = []
+                    first_image_url = ""  # Store the first image URL
+                    
                     for i, url in enumerate(image_urls):
                         pbar.update_absolute(40 + (i+1) * 50 // len(image_urls))
+                        
+                        if i == 0:
+                            first_image_url = url  # Save the first URL
                         
                         try:
                             img_response = requests.get(url, timeout=self.timeout)
                             img_response.raise_for_status()
                             pil_image = Image.open(BytesIO(img_response.content))
                             
-                            # Always resize the image to the target size to ensure consistency
+                            # Resize the image to the target size if necessary
                             resized_image = self.resize_to_target_size(pil_image, target_size)
                             
                             # Convert to tensor
@@ -1521,10 +1734,16 @@ class ComflyGeminiAPI:
                             continue
                     
                     if images:
-                        # Since we've resized all images to the same target size, torch.cat should work
-                        combined_tensor = torch.cat(images, dim=0)
+                        # If all images are the same size, we can use torch.cat
+                        try:
+                            combined_tensor = torch.cat(images, dim=0)
+                        except RuntimeError:
+                            # If images are different sizes, we'll need to handle them individually
+                            print("Warning: Images have different sizes, returning first image")
+                            combined_tensor = images[0] if images else None
+                            
                         pbar.update_absolute(100)
-                        return (combined_tensor, formatted_response)
+                        return (combined_tensor, formatted_response, first_image_url)
                     else:
                         # If no images were successfully processed
                         raise Exception("No images could be processed successfully")
@@ -1546,12 +1765,12 @@ class ComflyGeminiAPI:
                 
             if reference_image is not None:
                 # If any input image was provided, return the first available one with the text response
-                return (reference_image, formatted_response)
+                return (reference_image, formatted_response, "")
             else:
                 # Create a default blank image with the target size
                 default_image = Image.new('RGB', target_size, color='white')
                 default_tensor = pil2tensor(default_image)
-                return (default_tensor, formatted_response)
+                return (default_tensor, formatted_response, "")
             
         except TimeoutError as e:
             error_message = f"API timeout error: {str(e)}"
@@ -1567,18 +1786,217 @@ class ComflyGeminiAPI:
         """Handle errors with appropriate image output"""
         # Return the first available image if any
         if object_image is not None:
-            return (object_image, error_message)
+            return (object_image, error_message, "")
         elif subject_image is not None:
-            return (subject_image, error_message)
+            return (subject_image, error_message, "")
         elif scene_image is not None:
-            return (scene_image, error_message)
+            return (scene_image, error_message, "")
         else:
             # Create an error image with the specified resolution
-            target_size = self.parse_resolution(resolution)
+            # Handle custom resolution options
+            if resolution in ["object_image size", "subject_image size", "scene_image size"]:
+                target_size = (1024, 1024)  # Default if custom option selected but no image provided
+            else:
+                target_size = self.parse_resolution(resolution)
+                
             default_image = Image.new('RGB', target_size, color='white')
             default_tensor = pil2tensor(default_image)
-            return (default_tensor, error_message)
+            return (default_tensor, error_message, "")
+
+
+############################# Doubao ###########################
+
+class ComflySeededit:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "prompt": ("STRING", {"multiline": True}),
+                "scale": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647, "step": 1}),
+            },
+            "optional": {
+                "add_logo": ("BOOLEAN", {"default": False}),
+                "logo_position": (["右下角", "左下角", "左上角", "右上角"], {"default": "右下角"}),
+                "logo_language": (["中文", "英文"], {"default": "中文"}),
+                "logo_text": ("STRING", {"default": "", "multiline": False}),
+            }
+        }
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING")
+    RETURN_NAMES = ("edited_image", "response", "image_url")
+    FUNCTION = "edit_image"
+    CATEGORY = "Comfly/image_edit"
+    
+    def __init__(self):
+        super().__init__()
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        config_file_path = os.path.join(current_dir, 'Comflyapi.json')
+        
+        try:
+            with open(config_file_path, 'r') as f:
+                api_config = json.load(f)
+                self.api_key = api_config.get('api_key', '')
+        except Exception as e:
+            print(f"Error loading API config: {str(e)}")
+            self.api_key = ""
+        self.timeout = 120 
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        
+    def get_logo_position_value(self, position_str):
+        position_map = {
+            "右下角": 0,
+            "左下角": 1,
+            "左上角": 2,
+            "右上角": 3
+        }
+        return position_map.get(position_str, 0)
+        
+    def get_logo_language_value(self, language_str):
+        language_map = {
+            "中文": 0,
+            "英文": 1
+        }
+        return language_map.get(language_str, 0)
+    def edit_image(self, image, prompt, scale=0.5, seed=-1, add_logo=False, logo_position="右下角", logo_language="中文", logo_text=""):
+        try:
+            if not self.api_key:
+                error_message = "API key not found in Comflyapi.json"
+                print(error_message)
+                return (image, error_message, "")
+                
+            # Convert tensor to PIL image
+            pil_image = tensor2pil(image)[0]
             
+            # Convert image to base64
+            buffered = BytesIO()
+            pil_image.save(buffered, format="JPEG")
+            img_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+            
+            # Initialize progress bar
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(10)
+            
+            position_value = self.get_logo_position_value(logo_position)
+            language_value = self.get_logo_language_value(logo_language)
+            
+            logo_info = {
+                "add_logo": add_logo,
+                "position": position_value,
+                "language": language_value
+            }
+ 
+            if logo_text:
+                logo_info["logo_text_content"] = logo_text
+            
+            # Prepare the API request
+            payload = {
+                "req_key": "byteedit_v2.0",
+                "binary_data_base64": [img_base64],
+                "prompt": prompt,
+                "scale": scale,
+                "seed": seed,
+                "return_url": True,
+                "logo_info": logo_info
+            }
+            
+            # Call the API
+            api_url = "https://ai.comfly.chat/volcv/v1?Action=CVProcess&Version=2022-08-31"
+            
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            response_info = f"**SeedEdit Request**\n\n"
+            response_info += f"Prompt: {prompt}\n"
+            response_info += f"Scale: {scale}\n"
+            response_info += f"Seed: {seed}\n"
+            response_info += f"Time: {timestamp}\n\n"
+            
+            try:
+                response = requests.post(
+                    api_url,
+                    headers=self.get_headers(),
+                    json=payload,
+                    timeout=self.timeout
+                )
+            except requests.exceptions.Timeout:
+                error_message = f"API request timed out after {self.timeout} seconds"
+                print(error_message)
+                response_info += f"Error: {error_message}"
+                return (image, response_info, "")
+            
+            # Check for status code
+            if response.status_code != 200:
+                error_message = f"API Error: Status {response.status_code}\nResponse: {response.text}"
+                print(error_message)
+                response_info += f"Error: {error_message}"
+                return (image, response_info, "")
+                
+            result = response.json()
+            
+            pbar.update_absolute(70)
+            
+            # Check for API errors
+            if result.get("code") != 10000:
+                error_message = f"API Error: {result.get('message', 'Unknown error')}\nDetails: {json.dumps(result, indent=2)}"
+                print(error_message)
+                response_info += f"Error: {error_message}"
+                return (image, response_info, "")
+            
+            # Get the result image URL
+            image_url = ""
+            if "image_urls" in result["data"] and result["data"]["image_urls"]:
+                image_url = result["data"]["image_urls"][0]
+                response_info += f"Success!\n\nImage URL: {image_url}\n\n"
+                
+                if "vlm_result" in result["data"] and result["data"]["vlm_result"]:
+                    response_info += f"VLM Description: {result['data']['vlm_result']}\n"
+            else:
+                error_message = "No image URL found in response"
+                print(error_message)
+                response_info += f"Error: {error_message}\nFull response: {json.dumps(result, indent=2)}"
+                return (image, response_info, "")
+            
+            print(f"Found image URL: {image_url}")
+            
+            # Download the image
+            try:
+                img_response = requests.get(image_url, timeout=self.timeout)
+                img_response.raise_for_status()
+            except requests.exceptions.Timeout:
+                error_message = f"Timeout while downloading result image after {self.timeout} seconds"
+                print(error_message)
+                response_info += f"Error: {error_message}"
+                return (image, response_info, image_url)  # Return the URL even though download failed
+            except Exception as e:
+                error_message = f"Error downloading result image: {str(e)}"
+                print(error_message)
+                response_info += f"Error: {error_message}"
+                return (image, response_info, image_url)  # Return the URL even though download failed
+                
+            edited_image = Image.open(BytesIO(img_response.content))
+            
+            # Convert back to tensor
+            edited_tensor = pil2tensor(edited_image)
+            
+            pbar.update_absolute(100)
+        
+            if "request_id" in result:
+                response_info += f"Request ID: {result['request_id']}\n"
+            
+            if "time_elapsed" in result:
+                response_info += f"Processing Time: {result['time_elapsed']}\n"
+            
+            return (edited_tensor, response_info, image_url)
+            
+        except Exception as e:
+            error_message = f"Error in image editing: {str(e)}"
+            print(error_message)
+            # Return original image on error with error message
+            return (image, error_message, "")
+
 
 
 WEB_DIRECTORY = "./web"    
@@ -1591,9 +2009,12 @@ NODE_CLASS_MAPPINGS = {
     "Comfly_Mjv": Comfly_Mjv,  
     "Comfly_kling_text2video": Comfly_kling_text2video,
     "Comfly_kling_image2video": Comfly_kling_image2video,
-    "Comfly_video_extend": Comfly_video_extend,        
-    "Comfly_kling_videoPreview": Comfly_kling_videoPreview, 
+    "Comfly_video_extend": Comfly_video_extend,
+    "Comfly_lip_sync": Comfly_lip_sync,
+    "Comfly_voices": Comfly_voices,
+    "Comfly_kling_videoPreview": Comfly_kling_videoPreview,  
     "ComflyGeminiAPI": ComflyGeminiAPI,
+    "ComflySeededit": ComflySeededit,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -1601,10 +2022,13 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_mjstyle": "Comfly_mjstyle",
     "Comfly_upload": "Comfly_upload",
     "Comfly_Mju": "Comfly_Mju",
-    "Comfly_Mjv": "Comfly_Mjv", 
+    "Comfly_Mjv": "Comfly_Mjv",  
     "Comfly_kling_text2video": "Comfly_kling_text2video",
     "Comfly_kling_image2video": "Comfly_kling_image2video",
     "Comfly_video_extend": "Comfly_video_extend",
+    "Comfly_lip_sync": "Comfly_lip_sync",
+    "Comfly_voices": "Comfly Voices",
     "Comfly_kling_videoPreview": "Comfly_kling_videoPreview",  
     "ComflyGeminiAPI": "Comfly Gemini API",
+    "ComflySeededit": "Comfly Doubao SeedEdit",
 }
