@@ -137,7 +137,6 @@ class ComflyBaseNode:
             raise Exception(error_message)
 
 
-
 class Comfly_upload(ComflyBaseNode):
     """
     Comfly_upload node
@@ -207,7 +206,6 @@ class Comfly_upload(ComflyBaseNode):
         except Exception as e:
             raise e
         
-
 
 class Comfly_Mj(ComflyBaseNode):
     """
@@ -897,6 +895,7 @@ class Comfly_mjstyle:
         return (style_positive, style_negative)
 
 
+
 ############################# Kling ###########################
 
 class Comfly_kling_text2video:
@@ -1304,13 +1303,83 @@ class Comfly_video_extend:
 class Comfly_lip_sync:
     @classmethod
     def INPUT_TYPES(cls):
+        cls.zh_voices = [
+            ["阳光少年", "genshin_vindi2"],
+            ["懂事小弟", "zhinen_xuesheng"],
+            ["运动少年", "tiyuxi_xuedi"],
+            ["青春少女", "ai_shatang"],
+            ["温柔小妹", "genshin_klee2"],
+            ["元气少女", "genshin_kirara"],
+            ["阳光男生", "ai_kaiya"],
+            ["幽默小哥", "tiexin_nanyou"],
+            ["文艺小哥", "ai_chenjiahao_712"],
+            ["甜美邻家", "girlfriend_1_speech02"],
+            ["温柔姐姐", "chat1_female_new-3"],
+            ["职场女青", "girlfriend_2_speech02"],
+            ["活泼男童", "cartoon-boy-07"],
+            ["俏皮女童", "cartoon-girl-01"],
+            ["稳重老爸", "ai_huangyaoshi_712"],
+            ["温柔妈妈", "you_pingjing"],
+            ["严肃上司", "ai_laoguowang_712"],
+            ["优雅贵妇", "chengshu_jiejie"],
+            ["慈祥爷爷", "zhuxi_speech02"],
+            ["唠叨爷爷", "uk_oldman3"],
+            ["唠叨奶奶", "laopopo_speech02"],
+            ["和蔼奶奶", "heainainai_speech02"],
+            ["东北老铁", "dongbeilaotie_speech02"],
+            ["重庆小伙", "chongqingxiaohuo_speech02"],
+            ["四川妹子", "chuanmeizi_speech02"],
+            ["潮汕大叔", "chaoshandashu_speech02"],
+            ["台湾男生", "ai_taiwan_man2_speech02"],
+            ["西安掌柜", "xianzhanggui_speech02"],
+            ["天津姐姐", "tianjinjiejie_speech02"],
+            ["新闻播报男", "diyinnansang_DB_CN_M_04-v2"],
+            ["译制片男", "yizhipiannan-v1"],
+            ["元气少女", "guanxiaofang-v2"],
+            ["撒娇女友", "tianmeixuemei-v1"],
+            ["刀片烟嗓", "daopianyansang-v1"],
+            ["乖巧正太", "mengwa-v1"]
+        ]
+        
+        cls.en_voices = [
+            ["Sunny", "genshin_vindi2"],
+            ["Sage", "zhinen_xuesheng"],
+            ["Ace", "AOT"],
+            ["Blossom", "ai_shatang"],
+            ["Peppy", "genshin_klee2"],
+            ["Dove", "genshin_kirara"],
+            ["Shine", "ai_kaiya"],
+            ["Anchor", "oversea_male1"],
+            ["Lyric", "ai_chenjiahao_712"],
+            ["Melody", "girlfriend_4_speech02"],
+            ["Tender", "chat1_female_new-3"],
+            ["Siren", "chat_0407_5-1"],
+            ["Zippy", "cartoon-boy-07"],
+            ["Bud", "uk_boy1"],
+            ["Sprite", "cartoon-girl-01"],
+            ["Candy", "PeppaPig_platform"],
+            ["Beacon", "ai_huangzhong_712"],
+            ["Rock", "ai_huangyaoshi_712"],
+            ["Titan", "ai_laoguowang_712"],
+            ["Grace", "chengshu_jiejie"],
+            ["Helen", "you_pingjing"],
+            ["Lore", "calm_story1"],
+            ["Crag", "uk_man2"],
+            ["Prattle", "laopopo_speech02"],
+            ["Hearth", "heainainai_speech02"],
+            ["The Reader", "reader_en_m-v1"],
+            ["Commercial Lady", "commercial_lady_en_f-v1"]
+        ]
+        
         return {
             "required": {
                 "video_id": ("STRING", {"default": "", "multiline": False, "forceInput": True}),
-                "voice_id": ("STRING", {"default": "", "forceInput": True}), 
+                "task_id": ("STRING", {"default": "", "multiline": False, "forceInput": True}),
                 "mode": (["text2video", "audio2video"], {"default": "text2video"}),
                 "text": ("STRING", {"multiline": True, "default": ""}),
                 "voice_language": (["zh", "en"], {"default": "zh"}),
+                "zh_voice": ([name for name, _ in cls.zh_voices], {"default": cls.zh_voices[0][0]}),
+                "en_voice": ([name for name, _ in cls.en_voices], {"default": cls.en_voices[0][0]}),
                 "voice_speed": ("FLOAT", {"default": 1.0, "min": 0.8, "max": 2.0, "step": 0.1}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})
             },
@@ -1330,6 +1399,8 @@ class Comfly_lip_sync:
     def __init__(self):
         super().__init__()
         self.api_key = self.load_config_file().get('api_key', '')
+        self.zh_voice_map = {name: voice_id for name, voice_id in self.__class__.zh_voices}
+        self.en_voice_map = {name: voice_id for name, voice_id in self.__class__.en_voices}
 
     def load_config_file(self):
         config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "Comflyapi.json")
@@ -1340,9 +1411,14 @@ class Comfly_lip_sync:
             print(f"Error loading config file: {str(e)}")
             return {}
 
-    def process_lip_sync(self, video_id, mode, text, voice_id, voice_language, voice_speed, seed=0,
+    def process_lip_sync(self, video_id, task_id, mode, text, voice_language, zh_voice, en_voice, voice_speed, seed=0,
                         video_url="", audio_type="file", audio_file="", audio_url=""):
         
+        if voice_language == "zh":
+            voice_id = self.zh_voice_map.get(zh_voice, "")
+        else:
+            voice_id = self.en_voice_map.get(en_voice, "")
+            
         if not self.api_key:
             raise ValueError("API key not found in Comflyapi.json")
 
@@ -1353,6 +1429,7 @@ class Comfly_lip_sync:
 
         payload = {
             "input": {
+                "task_id": task_id,
                 "mode": mode,
                 "video_id": video_id if video_id else None,
                 "video_url": video_url if video_url else None,
@@ -1421,25 +1498,6 @@ class Comfly_lip_sync:
         return video_path
 
 
-class Comfly_voices:
-    @classmethod
-    def INPUT_TYPES(cls):
-        return {"required": {
-            "voice_type": (["中文音色", "英文音色"], {"default": "中文音色"})
-        }}  
-
-    RETURN_TYPES = ("STRING",)  
-    RETURN_NAMES = ("voice_id",)
-    FUNCTION = "get_voice_id"
-    CATEGORY = "Comfly/Comfly_kling"
-
-    def __init__(self):
-        self.selected_voice_id = None
-        
-    def get_voice_id(self, voice_type):
-        return (self.selected_voice_id or "",)
-
-
 class Comfly_kling_videoPreview:
     @classmethod
     def INPUT_TYPES(s):
@@ -1461,29 +1519,6 @@ class Comfly_kling_videoPreview:
         video_path_name = os.path.basename(os.path.dirname(video))
         return {"ui":{"video":[video_name,video_path_name]}}
     
-    
-   
-        
-class Comfly_kling_videoPreview:
-    @classmethod
-    def INPUT_TYPES(s):
-        return {"required":{
-            "video":("VIDEO",),
-        }}
-    
-    CATEGORY = "Comfly/Comfly_kling"
-    DESCRIPTION = "Preview the generated video."
-
-    RETURN_TYPES = ()
-
-    OUTPUT_NODE = True
-
-    FUNCTION = "Preview_video"
-
-    def Preview_video(self, video):
-        video_name = os.path.basename(video)
-        video_path_name = os.path.basename(os.path.dirname(video))
-        return {"ui":{"video":[video_name,video_path_name]}}
 
 
 ############################# Gemini ###########################
@@ -1826,7 +1861,7 @@ class ComflySeededit:
     RETURN_TYPES = ("IMAGE", "STRING", "STRING")
     RETURN_NAMES = ("edited_image", "response", "image_url")
     FUNCTION = "edit_image"
-    CATEGORY = "Comfly/image_edit"
+    CATEGORY = "Comfly/Doubao"
     
     def __init__(self):
         super().__init__()
@@ -2011,7 +2046,6 @@ NODE_CLASS_MAPPINGS = {
     "Comfly_kling_image2video": Comfly_kling_image2video,
     "Comfly_video_extend": Comfly_video_extend,
     "Comfly_lip_sync": Comfly_lip_sync,
-    "Comfly_voices": Comfly_voices,
     "Comfly_kling_videoPreview": Comfly_kling_videoPreview,  
     "ComflyGeminiAPI": ComflyGeminiAPI,
     "ComflySeededit": ComflySeededit,
@@ -2027,7 +2061,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_kling_image2video": "Comfly_kling_image2video",
     "Comfly_video_extend": "Comfly_video_extend",
     "Comfly_lip_sync": "Comfly_lip_sync",
-    "Comfly_voices": "Comfly Voices",
     "Comfly_kling_videoPreview": "Comfly_kling_videoPreview",  
     "ComflyGeminiAPI": "Comfly Gemini API",
     "ComflySeededit": "Comfly Doubao SeedEdit",
