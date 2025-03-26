@@ -1548,6 +1548,7 @@ class ComflyGeminiAPI:
                 "temperature": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
                 "top_p": ("FLOAT", {"default": 0.95, "min": 0.0, "max": 1.0, "step": 0.01}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
+                "timeout": ("INT", {"default": 120, "min": 10, "max": 600, "step": 10}),
             },
             "optional": {
                 "object_image": ("IMAGE",),  
@@ -1627,9 +1628,12 @@ class ComflyGeminiAPI:
         width, height = map(int, resolution_str.split('x'))
         return (width, height)
 
-    def process(self, prompt, model, resolution, num_images, temperature, top_p, seed, 
+    def process(self, prompt, model, resolution, num_images, temperature, top_p, seed, timeout=120, 
                 object_image=None, subject_image=None, scene_image=None):
         try:
+            # Set the timeout value from user input
+            self.timeout = timeout
+            
             # Get current timestamp for formatting
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
             
@@ -1875,7 +1879,7 @@ class ComflySeededit:
         except Exception as e:
             print(f"Error loading API config: {str(e)}")
             self.api_key = ""
-        self.timeout = 120 
+        self.timeout = 300 
     def get_headers(self):
         return {
             "Content-Type": "application/json",
