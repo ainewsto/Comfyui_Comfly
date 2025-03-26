@@ -921,8 +921,8 @@ class Comfly_kling_text2video:
             }
         }
 
-    RETURN_TYPES = ("VIDEO", "STRING", "STRING", "STRING")
-    RETURN_NAMES = ("video", "video_url", "task_id", "video_id")
+    RETURN_TYPES = ("VIDEO", "STRING", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("video", "video_url", "task_id", "video_id", "response")
     FUNCTION = "generate_video"
     CATEGORY = "Comfly/Comfly_kling"
 
@@ -940,16 +940,16 @@ class Comfly_kling_text2video:
             return {}
 
     def generate_video(self, prompt, model_name, imagination, aspect_ratio, mode, duration, num_videos, 
-                      negative_prompt="", camera="none", camera_value=0, seed=0):
+                  negative_prompt="", camera="none", camera_value=0, seed=0):
         if not self.api_key:
-            raise ValueError("API key not found in Comflyapi.json")
-
+            error_response = {"task_status": "failed", "task_status_msg": "API key not found in Comflyapi.json"}
+            return ("", "", "", "", json.dumps(error_response))
+            
         camera_json = {}
         if model_name == "kling-v1":  
             camera_json = self.get_camera_json(camera, camera_value)
         else:
             camera_json = self.get_camera_json("none", 0)
-
         payload = {
             "prompt": prompt,
             "negative_prompt": negative_prompt,
@@ -964,10 +964,8 @@ class Comfly_kling_text2video:
             "camera_json": camera_json,
             "seed": seed
         }
-
         try:
             pbar = comfy.utils.ProgressBar(100)  
-
             response = requests.post(
                 "https://ai.comfly.chat/kling/v1/videos/text2video",
                 headers=self.get_headers(),
@@ -975,13 +973,14 @@ class Comfly_kling_text2video:
             )
             response.raise_for_status()
             result = response.json()
-
             if result["code"] != 0:
-                raise Exception(f"API Error: {result['message']}")
-
+                error_response = {"task_status": "failed", "task_status_msg": f"API Error: {result['message']}"}
+                return ("", "", "", "", json.dumps(error_response))
+                
             task_id = result["data"]["task_id"]
             pbar.update_absolute(5)  
-
+            
+            last_status = {}
             while True:
                 time.sleep(2)
                 status_response = requests.get(
@@ -990,23 +989,38 @@ class Comfly_kling_text2video:
                 )
                 status_response.raise_for_status()
                 status_result = status_response.json()
-
+                last_status = status_result["data"]
+                
                 progress = status_result["data"].get("progress", 0)
                 pbar.update_absolute(progress)
-
+                
                 if status_result["data"]["task_status"] == "succeed":
                     pbar.update_absolute(100) 
                     video_url = status_result["data"]["task_result"]["videos"][0]["url"]
                     video_id = status_result["data"]["task_result"]["videos"][0]["id"]
                     video_path = self.download_video(video_url)
-                    return (video_path, video_url, task_id, video_id)
+                    
+                    # Format the response with task status information
+                    response_data = {
+                        "task_status": "succeed",
+                        "task_status_msg": "Video generated successfully",
+                        "progress": 100,
+                    }
+                    
+                    return (video_path, video_url, task_id, video_id, json.dumps(response_data))
                 
                 elif status_result["data"]["task_status"] == "failed":
-                    raise Exception("Video generation failed")
-
+                    error_msg = status_result["data"].get("task_status_msg", "Unknown error")
+                    error_response = {
+                        "task_status": "failed", 
+                        "task_status_msg": error_msg,
+                    }
+                    print(f"Task failed: {error_msg}")
+                    return ("", "", task_id, "", json.dumps(error_response))
         except Exception as e:
+            error_response = {"task_status": "failed", "task_status_msg": f"Error generating video: {str(e)}"}
             print(f"Error generating video: {str(e)}")
-            return ("", "", "", "")
+            return ("", "", "", "", json.dumps(error_response))
 
     def get_headers(self):
         return {
@@ -1068,8 +1082,8 @@ class Comfly_kling_image2video:
             }
         }
 
-    RETURN_TYPES = ("VIDEO", "STRING", "STRING", "STRING")
-    RETURN_NAMES = ("video", "video_url", "task_id", "video_id")
+    RETURN_TYPES = ("VIDEO", "STRING", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("video", "video_url", "task_id", "video_id", "response")
     FUNCTION = "generate_video"
     CATEGORY = "Comfly/Comfly_kling"
 
@@ -1087,40 +1101,40 @@ class Comfly_kling_image2video:
             return {}
 
     def generate_video(self, image, prompt, model_name, imagination, aspect_ratio, mode, duration, 
-                      num_videos, negative_prompt="", camera="none", camera_value=0, seed=0, image_tail=None):
+                  num_videos, negative_prompt="", camera="none", camera_value=0, seed=0, image_tail=None):
         if not self.api_key:
-            raise ValueError("API key not found in Comflyapi.json")
-
+            error_response = {"task_status": "failed", "task_status_msg": "API key not found in Comflyapi.json"}
+            return ("", "", "", "", json.dumps(error_response))
+            
         camera_json = {}
         if model_name == "kling-v1-5" and mode == "pro": 
             camera_json = self.get_camera_json(camera, camera_value)
         else:
             camera_json = self.get_camera_json("none", 0)
-
-        image_base64 = self.image_to_base64(tensor2pil(image)[0])
-        image_tail_base64 = ""
-        if image_tail is not None:
-            image_tail_base64 = self.image_to_base64(tensor2pil(image_tail)[0])
-
-        payload = {
-            "prompt": prompt,
-            "negative_prompt": negative_prompt,
-            "image": image_base64,
-            "image_tail": image_tail_base64,
-            "aspect_ratio": aspect_ratio,
-            "mode": mode,
-            "duration": duration,
-            "model_name": model_name,
-            "imagination": imagination,
-            "num_videos": num_videos,
-            "camera_json": camera_json,
-            "seed": seed
-        }
-
+            
         try:
+            image_base64 = self.image_to_base64(tensor2pil(image)[0])
+            image_tail_base64 = ""
+            if image_tail is not None:
+                image_tail_base64 = self.image_to_base64(tensor2pil(image_tail)[0])
+                
+            payload = {
+                "prompt": prompt,
+                "negative_prompt": negative_prompt,
+                "image": image_base64,
+                "image_tail": image_tail_base64,
+                "aspect_ratio": aspect_ratio,
+                "mode": mode,
+                "duration": duration,
+                "model_name": model_name,
+                "imagination": imagination,
+                "num_videos": num_videos,
+                "camera_json": camera_json,
+                "seed": seed
+            }
+            
             pbar = comfy.utils.ProgressBar(100)
             pbar.update_absolute(5)  
-
             response = requests.post(
                 "https://ai.comfly.chat/kling/v1/videos/image2video",
                 headers=self.get_headers(),
@@ -1128,13 +1142,14 @@ class Comfly_kling_image2video:
             )
             response.raise_for_status()
             result = response.json()
-
             if result["code"] != 0:
-                raise Exception(f"API Error: {result['message']}")
-
+                error_response = {"task_status": "failed", "task_status_msg": f"API Error: {result['message']}"}
+                return ("", "", "", "", json.dumps(error_response))
+                
             task_id = result["data"]["task_id"]
             pbar.update_absolute(10) 
-
+            
+            last_status = {}
             while True:
                 time.sleep(2)
                 status_response = requests.get(
@@ -1143,23 +1158,38 @@ class Comfly_kling_image2video:
                 )
                 status_response.raise_for_status()
                 status_result = status_response.json()
-
+                last_status = status_result["data"]
+                
                 progress = status_result["data"].get("progress", 0)
                 pbar.update_absolute(progress)
-
+                
                 if status_result["data"]["task_status"] == "succeed":
                     pbar.update_absolute(100) 
                     video_url = status_result["data"]["task_result"]["videos"][0]["url"]
                     video_id = status_result["data"]["task_result"]["videos"][0]["id"]
                     video_path = self.download_video(video_url)
-                    return (video_path, video_url, task_id, video_id)
+                    
+                    # Format the response with task status information
+                    response_data = {
+                        "task_status": "succeed",
+                        "task_status_msg": "Video generated successfully",
+                        "progress": 100,
+                    }
+                    
+                    return (video_path, video_url, task_id, video_id, json.dumps(response_data))
                 
                 elif status_result["data"]["task_status"] == "failed":
-                    raise Exception("Video generation failed")
-
+                    error_msg = status_result["data"].get("task_status_msg", "Unknown error")
+                    error_response = {
+                        "task_status": "failed", 
+                        "task_status_msg": error_msg,
+                    }
+                    print(f"Task failed: {error_msg}")
+                    return ("", "", task_id, "", json.dumps(error_response))
         except Exception as e:
+            error_response = {"task_status": "failed", "task_status_msg": f"Error generating video: {str(e)}"}
             print(f"Error generating video: {str(e)}")
-            return ("", "", "", "")
+            return ("", "", "", "", json.dumps(error_response))
 
     def get_headers(self):
         return {
@@ -1201,6 +1231,7 @@ class Comfly_kling_image2video:
         return base64.b64encode(buffered.getvalue()).decode('utf-8')
 
 
+
 class Comfly_video_extend:
     @classmethod
     def INPUT_TYPES(cls):
@@ -1211,8 +1242,8 @@ class Comfly_video_extend:
             }
         }
 
-    RETURN_TYPES = ("VIDEO", "STRING")
-    RETURN_NAMES = ("video", "video_id")
+    RETURN_TYPES = ("VIDEO", "STRING", "STRING")
+    RETURN_NAMES = ("video", "video_id", "response")
     FUNCTION = "extend_video"
     CATEGORY = "Comfly/Comfly_kling"
 
@@ -1231,18 +1262,17 @@ class Comfly_video_extend:
 
     def extend_video(self, video_id, prompt=""):
         if not self.api_key:
-            raise ValueError("API key not found in Comflyapi.json")
-
+            error_response = {"task_status": "failed", "task_status_msg": "API key not found in Comflyapi.json"}
+            return ("", "", json.dumps(error_response))
+            
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}"
         }
-
         payload = {
             "video_id": video_id,
             "prompt": prompt
         }
-
         try:
             response = requests.post(
                 "https://ai.comfly.chat/kling/v1/videos/video-extend",
@@ -1251,13 +1281,14 @@ class Comfly_video_extend:
             )
             response.raise_for_status()
             result = response.json()
-
             if result["code"] != 0:
-                raise Exception(f"API Error: {result['message']}")
-
+                error_response = {"task_status": "failed", "task_status_msg": f"API Error: {result['message']}"}
+                return ("", "", json.dumps(error_response))
+                
             task_id = result["data"]["task_id"]
             pbar = comfy.utils.ProgressBar(100)
-
+            
+            last_status = {}
             while True:
                 time.sleep(2)
                 status_response = requests.get(
@@ -1266,26 +1297,42 @@ class Comfly_video_extend:
                 )
                 status_response.raise_for_status()
                 status_result = status_response.json()
-
-                if status_result["data"]["task_status"] == "succeed":
-                    video_url = status_result["data"]["task_result"]["videos"][0]["url"]
-                    new_video_id = status_result["data"]["task_result"]["videos"][0]["id"]
-                    video_path = self.download_video(video_url)
-                    return (video_path, new_video_id)
+                last_status = status_result["data"]
                 
-                elif status_result["data"]["task_status"] == "failed":
-                    raise Exception(f"Video extension failed: {status_result['data'].get('task_status_msg', 'Unknown error')}")
-
                 progress = 0
                 if status_result["data"]["task_status"] == "processing":
                     progress = 50
                 elif status_result["data"]["task_status"] == "succeed":
                     progress = 100
                 pbar.update_absolute(progress)
-
+                
+                if status_result["data"]["task_status"] == "succeed":
+                    video_url = status_result["data"]["task_result"]["videos"][0]["url"]
+                    new_video_id = status_result["data"]["task_result"]["videos"][0]["id"]
+                    video_path = self.download_video(video_url)
+                    
+                    # Format the response with task status information
+                    response_data = {
+                        "task_status": "succeed",
+                        "task_status_msg": "Video extended successfully",
+                        "progress": 100,
+                    }
+                    
+                    return (video_path, new_video_id, json.dumps(response_data))
+                
+                elif status_result["data"]["task_status"] == "failed":
+                    error_msg = status_result["data"].get("task_status_msg", "Unknown error")
+                    error_response = {
+                        "task_status": "failed", 
+                        "task_status_msg": error_msg,
+                    }
+                    print(f"Task failed: {error_msg}")
+                    return ("", "", json.dumps(error_response))
+                    
         except Exception as e:
+            error_response = {"task_status": "failed", "task_status_msg": f"Error extending video: {str(e)}"}
             print(f"Error extending video: {str(e)}")
-            return ("", "")
+            return ("", "", json.dumps(error_response))
 
     def download_video(self, video_url):
         input_path = folder_paths.get_output_directory()
@@ -1297,8 +1344,8 @@ class Comfly_video_extend:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
 
-        return video_path    
-
+        return video_path
+   
 
 class Comfly_lip_sync:
     @classmethod
@@ -1391,8 +1438,8 @@ class Comfly_lip_sync:
             }
         }
 
-    RETURN_TYPES = ("VIDEO", "STRING", "STRING")
-    RETURN_NAMES = ("video", "video_url", "task_id")
+    RETURN_TYPES = ("VIDEO", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("video", "video_url", "task_id", "response")
     FUNCTION = "process_lip_sync"
     CATEGORY = "Comfly/Comfly_kling"
 
@@ -1411,91 +1458,108 @@ class Comfly_lip_sync:
             print(f"Error loading config file: {str(e)}")
             return {}
 
-    def process_lip_sync(self, video_id, task_id, mode, text, voice_language, zh_voice, en_voice, voice_speed, seed=0,
-                        video_url="", audio_type="file", audio_file="", audio_url=""):
+        def process_lip_sync(self, video_id, task_id, mode, text, voice_language, zh_voice, en_voice, voice_speed, seed=0,
+                    video_url="", audio_type="file", audio_file="", audio_url=""):
+    
+            if not self.api_key:
+                error_response = {"task_status": "failed", "task_status_msg": "API key not found in Comflyapi.json"}
+                return ("", "", "", json.dumps(error_response))
         
-        if voice_language == "zh":
-            voice_id = self.zh_voice_map.get(zh_voice, "")
-        else:
-            voice_id = self.en_voice_map.get(en_voice, "")
-            
-        if not self.api_key:
-            raise ValueError("API key not found in Comflyapi.json")
-
-        headers = {
-            "Content-Type": "application/json", 
-            "Authorization": f"Bearer {self.api_key}"
-        }
-
-        payload = {
-            "input": {
-                "task_id": task_id,
-                "mode": mode,
-                "video_id": video_id if video_id else None,
-                "video_url": video_url if video_url else None,
-                "text": text if mode == "text2video" else None,
-                "voice_id": voice_id if mode == "text2video" else None,
-                "voice_language": voice_language if mode == "text2video" else None,
-                "voice_speed": voice_speed if mode == "text2video" else None,
-                "audio_type": audio_type if mode == "audio2video" else None,
-                "audio_file": audio_file if mode == "audio2video" and audio_type == "file" else None,
-                "audio_url": audio_url if mode == "audio2video" and audio_type == "url" else None,
-                "seed": seed
+            if voice_language == "zh":
+                voice_id = self.zh_voice_map.get(zh_voice, "")
+            else:
+                voice_id = self.en_voice_map.get(en_voice, "")
+                
+            headers = {
+                "Content-Type": "application/json", 
+                "Authorization": f"Bearer {self.api_key}"
             }
-        }
-
-        try:
-            pbar = comfy.utils.ProgressBar(100)
-            pbar.update_absolute(5)  
-            response = requests.post(
-                "https://ai.comfly.chat/kling/v1/videos/lip-sync",
-                headers=headers,
-                json=payload
-            )
-            response.raise_for_status()
-            result = response.json()
-
-            if result["code"] != 0:
-                raise Exception(f"API Error: {result['message']}")
-
-            task_id = result["data"]["task_id"]
-            pbar.update_absolute(10) 
-
-            while True:
-                time.sleep(2)
-                status_response = requests.get(
-                    f"https://ai.comfly.chat/kling/v1/videos/lip-sync/{task_id}",
-                    headers=headers
+            payload = {
+                "input": {
+                    "task_id": task_id,
+                    "mode": mode,
+                    "video_id": video_id if video_id else None,
+                    "video_url": video_url if video_url else None,
+                    "text": text if mode == "text2video" else None,
+                    "voice_id": voice_id if mode == "text2video" else None,
+                    "voice_language": voice_language if mode == "text2video" else None,
+                    "voice_speed": voice_speed if mode == "text2video" else None,
+                    "audio_type": audio_type if mode == "audio2video" else None,
+                    "audio_file": audio_file if mode == "audio2video" and audio_type == "file" else None,
+                    "audio_url": audio_url if mode == "audio2video" and audio_type == "url" else None,
+                    "seed": seed
+                }
+            }
+            try:
+                pbar = comfy.utils.ProgressBar(100)
+                pbar.update_absolute(5)  
+                response = requests.post(
+                    "https://ai.comfly.chat/kling/v1/videos/lip-sync",
+                    headers=headers,
+                    json=payload
                 )
-                status_response.raise_for_status()
-                status_result = status_response.json()
+                response.raise_for_status()
+                result = response.json()
+                if result["code"] != 0:
+                    error_response = {"task_status": "failed", "task_status_msg": f"API Error: {result['message']}"}
+                    return ("", "", "", json.dumps(error_response))
+                    
+                task_id = result["data"]["task_id"]
+                pbar.update_absolute(10) 
+                
+                last_status = {}
+                while True:
+                    time.sleep(2)
+                    status_response = requests.get(
+                        f"https://ai.comfly.chat/kling/v1/videos/lip-sync/{task_id}",
+                        headers=headers
+                    )
+                    status_response.raise_for_status()
+                    status_result = status_response.json()
+                    last_status = status_result["data"]
+                    
+                    if status_result["data"]["task_status"] == "processing":
+                        progress = status_result["data"].get("progress", 50)  
+                        pbar.update_absolute(progress)
+                    elif status_result["data"]["task_status"] == "succeed":
+                        pbar.update_absolute(100)  
+                        video_url = status_result["data"]["task_result"]["videos"][0]["url"]
+                        video_path = self.download_video(video_url)
+                        
+                        # Format the response with task status information
+                        response_data = {
+                            "task_status": "succeed",
+                            "task_status_msg": "Lip sync completed successfully",
+                            "progress": 100,
+                        }
+                        
+                        return (video_path, video_url, task_id, json.dumps(response_data))
+                        
+                    elif status_result["data"]["task_status"] == "failed":
+                        error_msg = status_result["data"].get("task_status_msg", "Unknown error")
+                        error_response = {
+                            "task_status": "failed", 
+                            "task_status_msg": error_msg,
+                        }
+                        print(f"Task failed: {error_msg}")
+                        return ("", "", task_id, json.dumps(error_response))
+                        
+            except Exception as e:
+                error_response = {"task_status": "failed", "task_status_msg": f"Error in lip sync process: {str(e)}"}
+                print(f"Error in lip sync process: {str(e)}")
+                return ("", "", "", json.dumps(error_response))
 
-                if status_result["data"]["task_status"] == "processing":
-                    progress = status_result["data"].get("progress", 50)  
-                    pbar.update_absolute(progress)
-                elif status_result["data"]["task_status"] == "succeed":
-                    pbar.update_absolute(100)  
-                    video_url = status_result["data"]["task_result"]["videos"][0]["url"]
-                    video_path = self.download_video(video_url)
-                    return (video_path, video_url, task_id)
-                elif status_result["data"]["task_status"] == "failed":
-                    raise Exception(f"Lip sync failed: {status_result['data'].get('task_status_msg', 'Unknown error')}")
+        def download_video(self, video_url):
+            input_path = folder_paths.get_output_directory()
+            video_filename = f"{str(uuid.uuid4())}.mp4"
+            video_path = os.path.join(input_path, video_filename)
 
-        except Exception as e:
-            print(f"Error in lip sync process: {str(e)}")
-            return ("", "", "")
+            response = requests.get(video_url, stream=True)
+            with open(video_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
 
-    def download_video(self, video_url):
-        input_path = folder_paths.get_output_directory()
-        video_filename = f"{str(uuid.uuid4())}.mp4"
-        video_path = os.path.join(input_path, video_filename)
-
-        response = requests.get(video_url, stream=True)
-        with open(video_path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-
-        return video_path
+            return video_path
 
 
 class Comfly_kling_videoPreview:
