@@ -1,0 +1,411 @@
+{
+  "last_node_id": 26,
+  "last_link_id": 39,
+  "nodes": [
+    {
+      "id": 17,
+      "type": "ShowText|pysssss",
+      "pos": [
+        -890.126708984375,
+        -759.1605224609375
+      ],
+      "size": [
+        404.01727294921875,
+        116.56401824951172
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 31,
+          "widget": {
+            "name": "text"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null,
+          "shape": 6
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ShowText|pysssss"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 24,
+      "type": "LoadImage",
+      "pos": [
+        -1287.1475830078125,
+        -968.3455810546875
+      ],
+      "size": [
+        315,
+        314
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            37
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "1.jpg",
+        "image"
+      ]
+    },
+    {
+      "id": 22,
+      "type": "LoadImage",
+      "pos": [
+        -1285.79931640625,
+        -597.0714111328125
+      ],
+      "size": [
+        315,
+        314
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            35
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "2.jpg",
+        "image"
+      ]
+    },
+    {
+      "id": 21,
+      "type": "MultiImagesInput",
+      "pos": [
+        -816.4220581054688,
+        -958.3441772460938
+      ],
+      "size": [
+        210,
+        122
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image_1",
+          "type": "IMAGE",
+          "link": 37,
+          "shape": 7
+        },
+        {
+          "name": "image_2",
+          "type": "IMAGE",
+          "link": 35,
+          "shape": 7
+        },
+        {
+          "name": "image_3",
+          "type": "IMAGE",
+          "link": 36
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            33
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {},
+      "widgets_values": [
+        3,
+        null
+      ]
+    },
+    {
+      "id": 23,
+      "type": "LoadImage",
+      "pos": [
+        -1278.814453125,
+        -218.6844940185547
+      ],
+      "size": [
+        315,
+        314
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            36
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "3.jpg",
+        "image"
+      ]
+    },
+    {
+      "id": 25,
+      "type": "PreviewImage",
+      "pos": [
+        -428.7579345703125,
+        -751.380615234375
+      ],
+      "size": [
+        420.0105285644531,
+        576.1502685546875
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 38
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "PreviewImage"
+      }
+    },
+    {
+      "id": 14,
+      "type": "ComflyChatGPTApi",
+      "pos": [
+        -893.6181030273438,
+        -557.8041381835938
+      ],
+      "size": [
+        408.19891357421875,
+        376.5085754394531
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "files",
+          "type": "FILES",
+          "link": null,
+          "shape": 7
+        },
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 33,
+          "shape": 7
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            38
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "response",
+          "type": "STRING",
+          "links": [
+            39
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "image_urls",
+          "type": "STRING",
+          "links": [
+            31
+          ],
+          "slot_index": 2
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ComflyChatGPTApi"
+      },
+      "widgets_values": [
+        "以图片image_3为背景，图片image_2的模特手拿着图片image_1的化妆瓶",
+        "gpt-4o-all",
+        "",
+        0.7,
+        4096,
+        1,
+        0,
+        0,
+        180184047,
+        "randomize",
+        120
+      ]
+    },
+    {
+      "id": 26,
+      "type": "ShowText|pysssss",
+      "pos": [
+        29.915327072143555,
+        -748.803955078125
+      ],
+      "size": [
+        436.1102600097656,
+        570.7864379882812
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 39,
+          "widget": {
+            "name": "text"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": null,
+          "shape": 6
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ShowText|pysssss"
+      },
+      "widgets_values": [
+        ""
+      ]
+    }
+  ],
+  "links": [
+    [
+      31,
+      14,
+      2,
+      17,
+      0,
+      "STRING"
+    ],
+    [
+      33,
+      21,
+      0,
+      14,
+      1,
+      "IMAGE"
+    ],
+    [
+      35,
+      22,
+      0,
+      21,
+      1,
+      "IMAGE"
+    ],
+    [
+      36,
+      23,
+      0,
+      21,
+      2,
+      "IMAGE"
+    ],
+    [
+      37,
+      24,
+      0,
+      21,
+      0,
+      "IMAGE"
+    ],
+    [
+      38,
+      14,
+      0,
+      25,
+      0,
+      "IMAGE"
+    ],
+    [
+      39,
+      14,
+      1,
+      26,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.5131581182307068,
+      "offset": [
+        1722.6673290115805,
+        1151.9306852014386
+      ]
+    }
+  },
+  "version": 0.4
+}
