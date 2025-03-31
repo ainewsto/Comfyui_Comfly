@@ -2112,7 +2112,7 @@ class ComflyChatGPTApi:
         return {
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
-                "model": ("STRING", {"default": "gpt4o-image-vip", "multiline": False}),             
+                "model": ("STRING", {"default": "gpt-4o-image-vip", "multiline": False}),             
             },
             "optional": {
                 "files": ("FILES",), 
