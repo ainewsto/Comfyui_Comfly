@@ -1,56 +1,97 @@
 {
-  "last_node_id": 26,
-  "last_link_id": 39,
+  "last_node_id": 23,
+  "last_link_id": 26,
   "nodes": [
     {
-      "id": 17,
-      "type": "ShowText|pysssss",
+      "id": 7,
+      "type": "CLIPTextEncode",
       "pos": [
-        -890.126708984375,
-        -759.1605224609375
+        413,
+        389
       ],
       "size": [
-        404.01727294921875,
-        116.56401824951172
+        425.27801513671875,
+        180.6060791015625
       ],
       "flags": {},
-      "order": 7,
+      "order": 6,
       "mode": 0,
       "inputs": [
         {
-          "name": "text",
-          "type": "STRING",
-          "link": 31,
-          "widget": {
-            "name": "text"
-          }
+          "name": "clip",
+          "type": "CLIP",
+          "link": 5
         }
       ],
       "outputs": [
         {
-          "name": "STRING",
-          "type": "STRING",
-          "links": null,
-          "shape": 6
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            6
+          ],
+          "slot_index": 0
         }
       ],
       "properties": {
-        "Node name for S&R": "ShowText|pysssss"
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "CLIPTextEncode"
       },
       "widgets_values": [
-        ""
+        "text, watermark"
       ]
     },
     {
-      "id": 24,
-      "type": "LoadImage",
+      "id": 6,
+      "type": "CLIPTextEncode",
       "pos": [
-        -1287.1475830078125,
-        -968.3455810546875
+        415,
+        186
+      ],
+      "size": [
+        422.84503173828125,
+        164.31304931640625
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            4
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "beautiful scenery nature glass bottle landscape, , purple galaxy bottle,"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "EmptyLatentImage",
+      "pos": [
+        473,
+        609
       ],
       "size": [
         315,
-        314
+        106
       ],
       "flags": {},
       "order": 0,
@@ -58,36 +99,169 @@
       "inputs": [],
       "outputs": [
         {
-          "name": "IMAGE",
-          "type": "IMAGE",
+          "name": "LATENT",
+          "type": "LATENT",
           "links": [
-            37
-          ]
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
+            2
+          ],
+          "slot_index": 0
         }
       ],
       "properties": {
-        "Node name for S&R": "LoadImage"
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "EmptyLatentImage"
       },
       "widgets_values": [
-        "1.jpg",
-        "image"
+        512,
+        512,
+        1
       ]
     },
     {
-      "id": 22,
-      "type": "LoadImage",
+      "id": 3,
+      "type": "KSampler",
       "pos": [
-        -1285.79931640625,
-        -597.0714111328125
+        863,
+        186
       ],
       "size": [
         315,
-        314
+        262
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 1
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 4
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 6
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            7
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        156680208700286,
+        "randomize",
+        20,
+        8,
+        "euler",
+        "normal",
+        1
+      ]
+    },
+    {
+      "id": 8,
+      "type": "VAEDecode",
+      "pos": [
+        1209,
+        188
+      ],
+      "size": [
+        210,
+        46
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 7
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 8
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            9
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 9,
+      "type": "SaveImage",
+      "pos": [
+        1451,
+        189
+      ],
+      "size": [
+        210,
+        58
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 9
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26"
+      },
+      "widgets_values": [
+        "ComfyUI"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        26,
+        474
+      ],
+      "size": [
+        315,
+        98
       ],
       "flags": {},
       "order": 1,
@@ -95,57 +269,71 @@
       "inputs": [],
       "outputs": [
         {
-          "name": "IMAGE",
-          "type": "IMAGE",
+          "name": "MODEL",
+          "type": "MODEL",
           "links": [
-            35
-          ]
+            1
+          ],
+          "slot_index": 0
         },
         {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            3,
+            5
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            8
+          ],
+          "slot_index": 2
         }
       ],
       "properties": {
-        "Node name for S&R": "LoadImage"
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "CheckpointLoaderSimple"
       },
       "widgets_values": [
-        "2.jpg",
-        "image"
+        "v1-5-pruned-emaonly-fp16.safetensors"
       ]
     },
     {
-      "id": 21,
+      "id": 12,
       "type": "MultiImagesInput",
       "pos": [
-        -816.4220581054688,
-        -958.3441772460938
+        -3809.592529296875,
+        -6912.06787109375
       ],
       "size": [
         210,
         122
       ],
       "flags": {},
-      "order": 3,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
           "name": "image_1",
           "type": "IMAGE",
-          "link": 37,
-          "shape": 7
+          "shape": 7,
+          "link": 11
         },
         {
           "name": "image_2",
           "type": "IMAGE",
-          "link": 35,
-          "shape": 7
+          "shape": 7,
+          "link": 12
         },
         {
           "name": "image_3",
           "type": "IMAGE",
-          "link": 36
+          "link": null
         }
       ],
       "outputs": [
@@ -153,7 +341,7 @@
           "name": "images",
           "type": "IMAGE",
           "links": [
-            33
+            22
           ],
           "slot_index": 0
         }
@@ -165,15 +353,167 @@
       ]
     },
     {
-      "id": 23,
-      "type": "LoadImage",
+      "id": 17,
+      "type": "ShowText|pysssss",
       "pos": [
-        -1278.814453125,
-        -218.6844940185547
+        -3049.71142578125,
+        -6695.4765625
       ],
       "size": [
         315,
-        314
+        58
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 24
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "shape": 6,
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-custom-scripts",
+        "ver": "2c09d59ab5ac27ac59022832bfde4eeeb9c55825",
+        "Node name for S&R": "ShowText|pysssss"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 16,
+      "type": "PreviewImage",
+      "pos": [
+        -3383.67236328125,
+        -6687.01025390625
+      ],
+      "size": [
+        210,
+        26
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 23
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "PreviewImage"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 18,
+      "type": "ShowText|pysssss",
+      "pos": [
+        -3541.840576171875,
+        -6904.86572265625
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 25
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "shape": 6,
+          "links": []
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-custom-scripts",
+        "ver": "2c09d59ab5ac27ac59022832bfde4eeeb9c55825",
+        "Node name for S&R": "ShowText|pysssss"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 22,
+      "type": "ShowText|pysssss",
+      "pos": [
+        -3144.32470703125,
+        -6906.60888671875
+      ],
+      "size": [
+        315,
+        58
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 26
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "shape": 6,
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-custom-scripts",
+        "ver": "2c09d59ab5ac27ac59022832bfde4eeeb9c55825",
+        "Node name for S&R": "ShowText|pysssss"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 13,
+      "type": "LoadImage",
+      "pos": [
+        -4290.37939453125,
+        -6890.12744140625
+      ],
+      "size": [
+        315,
+        102
       ],
       "flags": {},
       "order": 2,
@@ -184,7 +524,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            36
+            11
           ]
         },
         {
@@ -194,65 +534,119 @@
         }
       ],
       "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
         "Node name for S&R": "LoadImage"
       },
       "widgets_values": [
-        "3.jpg",
+        "07cfd7be-fbef-4d11-9408-5076ee9188ac.mp4",
         "image"
       ]
     },
     {
-      "id": 25,
-      "type": "PreviewImage",
+      "id": 14,
+      "type": "LoadImage",
       "pos": [
-        -428.7579345703125,
-        -751.380615234375
+        -4300.0166015625,
+        -6664.62255859375
       ],
       "size": [
-        420.0105285644531,
-        576.1502685546875
+        315,
+        102
       ],
       "flags": {},
-      "order": 5,
+      "order": 3,
       "mode": 0,
-      "inputs": [
+      "inputs": [],
+      "outputs": [
         {
-          "name": "images",
+          "name": "IMAGE",
           "type": "IMAGE",
-          "link": 38
+          "links": [
+            12
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
         }
       ],
-      "outputs": [],
       "properties": {
-        "Node name for S&R": "PreviewImage"
-      }
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "07cfd7be-fbef-4d11-9408-5076ee9188ac.mp4",
+        "image"
+      ]
     },
     {
-      "id": 14,
-      "type": "ComflyChatGPTApi",
+      "id": 15,
+      "type": "LoadImage",
       "pos": [
-        -893.6181030273438,
-        -557.8041381835938
+        -4309.70556640625,
+        -6385.1572265625
       ],
       "size": [
-        408.19891357421875,
-        376.5085754394531
+        315,
+        102
       ],
       "flags": {},
       "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            13
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.26",
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "07cfd7be-fbef-4d11-9408-5076ee9188ac.mp4",
+        "image"
+      ]
+    },
+    {
+      "id": 23,
+      "type": "ComflyChatGPTApi",
+      "pos": [
+        -3887.965576171875,
+        -6679.4189453125
+      ],
+      "size": [
+        400,
+        388
+      ],
+      "flags": {},
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
           "name": "files",
           "type": "FILES",
-          "link": null,
-          "shape": 7
+          "shape": 7,
+          "link": null
         },
         {
           "name": "images",
           "type": "IMAGE",
-          "link": 33,
-          "shape": 7
+          "shape": 7,
+          "link": 22
         }
       ],
       "outputs": [
@@ -260,7 +654,7 @@
           "name": "images",
           "type": "IMAGE",
           "links": [
-            38
+            23
           ],
           "slot_index": 0
         },
@@ -268,7 +662,7 @@
           "name": "response",
           "type": "STRING",
           "links": [
-            39
+            24
           ],
           "slot_index": 1
         },
@@ -276,122 +670,173 @@
           "name": "image_urls",
           "type": "STRING",
           "links": [
-            31
+            25
           ],
           "slot_index": 2
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "links": [
+            26
+          ],
+          "slot_index": 3
         }
       ],
       "properties": {
+        "cnr_id": "Comfyui_Comfly",
+        "ver": "2929caa9b2742aae0b66cb7b3dd69355a8af46b4\n",
         "Node name for S&R": "ComflyChatGPTApi"
       },
       "widgets_values": [
-        "以图片image_3为背景，图片image_2的模特手拿着图片image_1的化妆瓶",
-        "gpt-4o-all",
+        "",
+        "gpt4o-image-vip",
         "",
         0.7,
         4096,
         1,
         0,
         0,
-        180184047,
+        -1,
         "randomize",
-        120
-      ]
-    },
-    {
-      "id": 26,
-      "type": "ShowText|pysssss",
-      "pos": [
-        29.915327072143555,
-        -748.803955078125
-      ],
-      "size": [
-        436.1102600097656,
-        570.7864379882812
-      ],
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "text",
-          "type": "STRING",
-          "link": 39,
-          "widget": {
-            "name": "text"
-          }
-        }
-      ],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": null,
-          "shape": 6
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "ShowText|pysssss"
-      },
-      "widgets_values": [
-        ""
+        100
       ]
     }
   ],
   "links": [
     [
-      31,
-      14,
+      1,
+      4,
+      0,
+      3,
+      0,
+      "MODEL"
+    ],
+    [
       2,
+      5,
+      0,
+      3,
+      3,
+      "LATENT"
+    ],
+    [
+      3,
+      4,
+      1,
+      6,
+      0,
+      "CLIP"
+    ],
+    [
+      4,
+      6,
+      0,
+      3,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      5,
+      4,
+      1,
+      7,
+      0,
+      "CLIP"
+    ],
+    [
+      6,
+      7,
+      0,
+      3,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      7,
+      3,
+      0,
+      8,
+      0,
+      "LATENT"
+    ],
+    [
+      8,
+      4,
+      2,
+      8,
+      1,
+      "VAE"
+    ],
+    [
+      9,
+      8,
+      0,
+      9,
+      0,
+      "IMAGE"
+    ],
+    [
+      11,
+      13,
+      0,
+      12,
+      0,
+      "IMAGE"
+    ],
+    [
+      12,
+      14,
+      0,
+      12,
+      1,
+      "IMAGE"
+    ],
+    [
+      13,
+      15,
+      0,
+      12,
+      2,
+      "IMAGE"
+    ],
+    [
+      22,
+      12,
+      0,
+      23,
+      1,
+      "IMAGE"
+    ],
+    [
+      23,
+      23,
+      0,
+      16,
+      0,
+      "IMAGE"
+    ],
+    [
+      24,
+      23,
+      1,
       17,
       0,
       "STRING"
     ],
     [
-      33,
-      21,
-      0,
-      14,
-      1,
-      "IMAGE"
-    ],
-    [
-      35,
-      22,
-      0,
-      21,
-      1,
-      "IMAGE"
-    ],
-    [
-      36,
-      23,
-      0,
-      21,
-      2,
-      "IMAGE"
-    ],
-    [
-      37,
-      24,
-      0,
-      21,
-      0,
-      "IMAGE"
-    ],
-    [
-      38,
-      14,
-      0,
       25,
+      23,
+      2,
+      18,
       0,
-      "IMAGE"
+      "STRING"
     ],
     [
-      39,
-      14,
-      1,
       26,
+      23,
+      3,
+      22,
       0,
       "STRING"
     ]
@@ -400,10 +845,10 @@
   "config": {},
   "extra": {
     "ds": {
-      "scale": 0.5131581182307068,
+      "scale": 0.8264462809917354,
       "offset": [
-        1722.6673290115805,
-        1151.9306852014386
+        4340.5059189280055,
+        7102.921197925815
       ]
     }
   },

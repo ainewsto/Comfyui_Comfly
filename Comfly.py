@@ -2112,7 +2112,7 @@ class ComflyChatGPTApi:
         return {
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
-                "model": ("STRING", {"default": "gpt-4o-image", "multiline": False}),             
+                "model": ("STRING", {"default": "gpt4o-image-vip", "multiline": False}),             
             },
             "optional": {
                 "files": ("FILES",), 
@@ -2124,12 +2124,12 @@ class ComflyChatGPTApi:
                 "frequency_penalty": ("FLOAT", {"default": 0.0, "min": -2.0, "max": 2.0, "step": 0.01}),
                 "presence_penalty": ("FLOAT", {"default": 0.0, "min": -2.0, "max": 2.0, "step": 0.01}),
                 "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647}),
-                "image_download_timeout": ("INT", {"default": 30, "min": 5, "max": 120, "step": 1}),
+                "image_download_timeout": ("INT", {"default": 100, "min": 5, "max": 300, "step": 1}),
             }
         }
-
-    RETURN_TYPES = ("IMAGE", "STRING", "STRING")
-    RETURN_NAMES = ("images", "response", "image_urls")
+    
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("images", "response", "image_urls", "prompt")
     FUNCTION = "process"
     CATEGORY = "Comfly/Chatgpt"
 
@@ -2241,7 +2241,7 @@ class ComflyChatGPTApi:
 
     def process(self, model, prompt, files=None, image_url="", images=None, temperature=0.7, 
                max_tokens=4096, top_p=1.0, frequency_penalty=0.0, presence_penalty=0.0, seed=-1,
-               image_download_timeout=30):
+               image_download_timeout=100):
         try:
             # Set image download timeout from parameter
             self.image_download_timeout = image_download_timeout
@@ -2251,7 +2251,7 @@ class ComflyChatGPTApi:
                 print(error_message)
                 # Return a blank image if no input image
                 blank_img = Image.new('RGB', (512, 512), color='white')
-                return (pil2tensor(blank_img), error_message, "")  
+                return (pil2tensor(blank_img), error_message, "", prompt)  
             
             # Initialize progress bar
             pbar = comfy.utils.ProgressBar(100)
@@ -2387,13 +2387,13 @@ class ComflyChatGPTApi:
             if images is not None:
                 # Return input images with text response
                 pbar.update_absolute(100)
-                return (images, formatted_response, image_urls_string)
+                return (images, formatted_response, image_urls_string, prompt)  
             else:
                 # Create a default blank image
                 blank_img = Image.new('RGB', (512, 512), color='white')
                 blank_tensor = pil2tensor(blank_img)
                 pbar.update_absolute(100)
-                return (blank_tensor, formatted_response, image_urls_string)
+                return (blank_tensor, formatted_response, image_urls_string, prompt)  
             
         except Exception as e:
             error_message = f"Error calling ChatGPT API: {str(e)}"
@@ -2401,11 +2401,11 @@ class ComflyChatGPTApi:
             
             # Return error with original image or blank image
             if images is not None:
-                return (images, error_message, "")
+                return (images, error_message, "", prompt)  
             else:
                 blank_img = Image.new('RGB', (512, 512), color='white')
                 blank_tensor = pil2tensor(blank_img)
-                return (blank_tensor, error_message, "")
+                return (blank_tensor, error_message, "", prompt) 
 
     async def stream_response(self, payload, pbar):
         """Stream response from API"""
