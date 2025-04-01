@@ -27,6 +27,9 @@
 
 # 更新 Update：
 
+20250401：
+`所有节点`: 所有调用apikey的节点新增apikey输入框。优化可灵图生图视频节点。
+
 20250329：
 `Chatgpt节点`: 新增openai的ComflyChatGPTApi节点，。
 目前单图和多图输入，文本输入，生成图片，图片编辑.使用的是 https://ai.comfly.chat 的 api key
