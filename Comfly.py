@@ -44,7 +44,7 @@ class ComflyBaseNode:
         }
         self.api_key = get_config().get('api_key', '') 
         self.speed = "fast mode"
-        self.timeout = 800 
+        self.timeout = 800
 
     def set_speed(self, speed):
         self.speed = speed
@@ -124,7 +124,7 @@ class ComflyBaseNode:
                         print(error_message)
                         raise Exception(error_message)
         except asyncio.TimeoutError:
-            error_message = f"Timeout error: Request to submit imagine task timed out after {} seconds"
+            error_message = f"Timeout error: Request to submit imagine task timed out after {self.timeout} seconds"
             print(error_message)
             raise Exception(error_message)
     async def midjourney_fetch_task_result(self, taskId):
@@ -134,7 +134,7 @@ class ComflyBaseNode:
         }
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.midjourney_api_url[self.speed]}/mj/task/{taskId}/fetch", headers=headers, timeout=) as response:
+                async with session.get(f"{self.midjourney_api_url[self.speed]}/mj/task/{taskId}/fetch", headers=headers, timeout=self.timeout) as response:
                     if response.status == 200:
                         data = await response.json()
                         return data
@@ -143,7 +143,7 @@ class ComflyBaseNode:
                         print(error_message)
                         raise Exception(error_message)
         except asyncio.TimeoutError:
-            error_message = f"Timeout error: Request to fetch task result timed out after {} seconds"
+            error_message = f"Timeout error: Request to fetch task result timed out after {self.timeout} seconds"
             print(error_message)
             raise Exception(error_message)
 
@@ -191,7 +191,7 @@ class Comfly_upload(ComflyBaseNode):
         # Send the POST request to upload the image
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/upload-discord-images", headers=self.get_headers(), json=payload, timeout=) as response:
+                async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/upload-discord-images", headers=self.get_headers(), json=payload, timeout=self.timeout) as response:
                     if response.status == 200:
                         data = await response.json()
                         if "result" in data and data["result"]:
@@ -203,7 +203,7 @@ class Comfly_upload(ComflyBaseNode):
                         error_message = f"Error uploading image to Midjourney: {response.status}"
                         raise Exception(error_message)
         except asyncio.TimeoutError:
-            error_message = f"Timeout error: Request to upload image timed out after {} seconds"
+            error_message = f"Timeout error: Request to upload image timed out after {self.timeout} seconds"
             print(error_message)
             raise Exception(error_message)
 
@@ -560,7 +560,7 @@ class Comfly_Mju(ComflyBaseNode):
         }
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/action", headers=headers, json=payload, timeout=) as response:
+                async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/action", headers=headers, json=payload, timeout=self.timeout) as response:
                     if response.status == 200:
                         data = await response.json()
                         return data
@@ -569,7 +569,7 @@ class Comfly_Mju(ComflyBaseNode):
                         print(error_message)
                         return error_message
         except asyncio.TimeoutError:
-            error_message = f"Timeout error: Request to submit action timed out after {} seconds"
+            error_message = f"Timeout error: Request to submit action timed out after {self.timeout} seconds"
             print(error_message)
             raise Exception(error_message)
 
@@ -2188,7 +2188,7 @@ class ComflyChatGPTApi:
         return {
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
-                "model": ("STRING", {"default": "gpt-4o-image", "multiline": False}),             
+                "model": ("STRING", {"default": "gpt-4o-image-vip", "multiline": False}),             
             },
             "optional": {
                 "api_key": ("STRING", {"default": ""}),
