@@ -1985,6 +1985,217 @@ class ComflyGeminiAPI:
 
 ############################# Doubao ###########################
 
+class ComflyJimengApi:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "scale": ("FLOAT", {"default": 2.5, "min": 1.0, "max": 10.0, "step": 0.1}),
+                "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647, "step": 1}),
+                "width": ("INT", {"default": 1328, "min": 512, "max": 2048, "step": 8}),
+                "height": ("INT", {"default": 1328, "min": 512, "max": 2048, "step": 8}),
+            },
+            "optional": {
+                "api_key": ("STRING", {"default": ""}),
+                "use_pre_llm": ("BOOLEAN", {"default": False}),
+                "add_logo": ("BOOLEAN", {"default": False}),
+                "logo_position": (["右下角", "左下角", "左上角", "右上角"], {"default": "右下角"}),
+                "logo_language": (["中文", "英文"], {"default": "中文"}),
+                "logo_text": ("STRING", {"default": "", "multiline": False}),
+                "logo_opacity": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0, "step": 0.1}),
+            }
+        }
+    
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING")
+    RETURN_NAMES = ("generated_image", "response", "image_url")
+    FUNCTION = "generate_image"
+    CATEGORY = "Comfly/Doubao"
+    
+    def __init__(self):
+        super().__init__()
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 300
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        
+    def get_logo_position_value(self, position_str):
+        position_map = {
+            "右下角": 0,
+            "左下角": 1,
+            "左上角": 2,
+            "右上角": 3
+        }
+        return position_map.get(position_str, 0)
+        
+    def get_logo_language_value(self, language_str):
+        language_map = {
+            "中文": 0,
+            "英文": 1
+        }
+        return language_map.get(language_str, 0)
+    
+    def generate_image(self, prompt, scale=2.5, seed=-1, width=1328, height=1328, use_pre_llm=False, 
+                      add_logo=False, logo_position="右下角", logo_language="中文", 
+                      logo_text="", logo_opacity=0.3, api_key=""):
+        if api_key.strip():
+            self.api_key = api_key
+            config = get_config()
+            config['api_key'] = api_key
+            save_config(config)
+            
+        try:
+            if not self.api_key:
+                error_message = "API key not found in Comflyapi.json"
+                print(error_message)
+                # Create a blank image to return
+                blank_image = Image.new('RGB', (width, height), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, error_message, "")
+                
+            # Initialize progress bar
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(10)
+            
+            position_value = self.get_logo_position_value(logo_position)
+            language_value = self.get_logo_language_value(logo_language)
+            
+            logo_info = {
+                "add_logo": add_logo,
+                "position": position_value,
+                "language": language_value,
+                "opacity": logo_opacity
+            }
+ 
+            if logo_text:
+                logo_info["logo_text_content"] = logo_text
+            
+            # Prepare the API request
+            payload = {
+                "req_key": "high_aes_general_v30l_zt2i",
+                "prompt": prompt,
+                "scale": scale,
+                "seed": seed,
+                "width": width,
+                "height": height,
+                "use_pre_llm": use_pre_llm,
+                "return_url": True,
+                "logo_info": logo_info
+            }
+            
+            # Call the API
+            api_url = "https://ai.comfly.chat/volcv/v1?Action=CVProcess&Version=2022-08-31"
+            
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            response_info = f"**Jimeng Image Generation Request**\n\n"
+            response_info += f"Prompt: {prompt}\n"
+            response_info += f"Scale: {scale}\n"
+            response_info += f"Seed: {seed}\n"
+            response_info += f"Dimensions: {width}x{height}\n"
+            response_info += f"Time: {timestamp}\n\n"
+            
+            try:
+                response = requests.post(
+                    api_url,
+                    headers=self.get_headers(),
+                    json=payload,
+                    timeout=self.timeout
+                )
+            except requests.exceptions.Timeout:
+                error_message = f"API request timed out after {self.timeout} seconds"
+                print(error_message)
+                response_info += f"Error: {error_message}"
+                blank_image = Image.new('RGB', (width, height), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, response_info, "")
+            
+            # Check for status code
+            if response.status_code != 200:
+                error_message = f"API Error: Status {response.status_code}\nResponse: {response.text}"
+                print(error_message)
+                response_info += f"Error: {error_message}"
+                blank_image = Image.new('RGB', (width, height), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, response_info, "")
+                
+            result = response.json()
+            
+            pbar.update_absolute(70)
+            
+            # Check for API errors
+            if result.get("code") != 10000:
+                error_message = f"API Error: {result.get('message', 'Unknown error')}\nDetails: {json.dumps(result, indent=2)}"
+                print(error_message)
+                response_info += f"Error: {error_message}"
+                blank_image = Image.new('RGB', (width, height), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, response_info, "")
+            
+            # Get the result image URL
+            image_url = ""
+            if "image_urls" in result["data"] and result["data"]["image_urls"]:
+                image_url = result["data"]["image_urls"][0]
+                response_info += f"Success!\n\nImage URL: {image_url}\n\n"
+                
+                if "vlm_result" in result["data"] and result["data"]["vlm_result"]:
+                    response_info += f"VLM Description: {result['data']['vlm_result']}\n"
+            else:
+                error_message = "No image URL found in response"
+                print(error_message)
+                response_info += f"Error: {error_message}\nFull response: {json.dumps(result, indent=2)}"
+                blank_image = Image.new('RGB', (width, height), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, response_info, "")
+            
+            print(f"Found image URL: {image_url}")
+            
+            # Download the image
+            try:
+                img_response = requests.get(image_url, timeout=self.timeout)
+                img_response.raise_for_status()
+            except requests.exceptions.Timeout:
+                error_message = f"Timeout while downloading result image after {self.timeout} seconds"
+                print(error_message)
+                response_info += f"Error: {error_message}"
+                blank_image = Image.new('RGB', (width, height), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, response_info, image_url)  # Return the URL even though download failed
+            except Exception as e:
+                error_message = f"Error downloading result image: {str(e)}"
+                print(error_message)
+                response_info += f"Error: {error_message}"
+                blank_image = Image.new('RGB', (width, height), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, response_info, image_url)  # Return the URL even though download failed
+                
+            generated_image = Image.open(BytesIO(img_response.content))
+            
+            # Convert to tensor
+            generated_tensor = pil2tensor(generated_image)
+            
+            pbar.update_absolute(100)
+        
+            if "request_id" in result:
+                response_info += f"Request ID: {result['request_id']}\n"
+            
+            if "time_elapsed" in result:
+                response_info += f"Processing Time: {result['time_elapsed']}\n"
+            
+            return (generated_tensor, response_info, image_url)
+            
+        except Exception as e:
+            error_message = f"Error in image generation: {str(e)}"
+            print(error_message)
+            # Return blank image on error with error message
+            blank_image = Image.new('RGB', (width, height), color='white')
+            blank_tensor = pil2tensor(blank_image)
+            return (blank_tensor, error_message, "")
+
+
 class ComflySeededit:
     @classmethod
     def INPUT_TYPES(cls):
@@ -2539,6 +2750,7 @@ NODE_CLASS_MAPPINGS = {
     "ComflyGeminiAPI": ComflyGeminiAPI,
     "ComflySeededit": ComflySeededit,
     "ComflyChatGPTApi": ComflyChatGPTApi,
+    "ComflyJimengApi": ComflyJimengApi, 
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -2555,4 +2767,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ComflyGeminiAPI": "Comfly Gemini API",
     "ComflySeededit": "Comfly Doubao SeedEdit",
     "ComflyChatGPTApi": "Comfly ChatGPT Api",
+    "ComflyJimengApi": "Comfly Jimeng API",  
 }
