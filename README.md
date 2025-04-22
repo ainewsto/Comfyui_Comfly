@@ -28,7 +28,7 @@
 # 更新 Update：
 
 20250422：
-`Chatgpt节点`: ComflyJimengApi节点新增chats输出口，输出多轮对话。
+`Chatgpt节点`: ComflyChatGPTApi节点新增chats输出口，输出多轮对话。
 新增clear_chats,当为Ture的时候，只能image输入什么图片修改什么图片，不支持显示上下文对话。
 当为Flase的时候，支持对上一次生成的图片进行二次修改。支持显示上下文对话。
 
