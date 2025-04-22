@@ -27,6 +27,17 @@
 
 # 更新 Update：
 
+20250422：
+`Chatgpt节点`: ComflyJimengApi节点新增chats输出口，输出多轮对话。
+新增clear_chats,当为Ture的时候，只能image输入什么图片修改什么图片，不支持显示上下文对话。
+当为Flase的时候，支持对上一次生成的图片进行二次修改。支持显示上下文对话。
+
+<details>
+<summary>查看更新/Update </summary>  
+ 
+
+</details> 
+
 20250418：
 `jimeng即梦节点`: 新增即梦的ComflyJimengApi节点。
 目前只支持文生图，使用的是 https://ai.comfly.chat 的 api key
@@ -67,7 +78,7 @@ opacity：水印的不透明度，取值范围0-1，1表示完全不透明，默
 目前单图和多图输入，文本输入，生成图片，图片编辑.使用的是 https://ai.comfly.chat 的 api key
 固定一次生成消耗0.06元（显示是逆向api，稳定性还不高，想尝鲜的可以注册网站用免费送的0.2美金玩玩）
 速度不快，因为官网速度也不快，所以需要点耐心。 files输入接口还没有完善，先忽略。
-用gpt-4o-image现在先对稳定点
+用sora_image现在先对稳定点
 
 <details>
 <summary>查看更新/Update </summary>  
