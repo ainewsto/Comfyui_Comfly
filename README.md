@@ -27,6 +27,24 @@
 
 # 更新 Update：
 
+20250424：
+`Chatgpt节点`: ComflyChatGPTApi节点新增官方gpt-image-1，按次计费 0.06，
+旧版的gpt4o-image，gpt4o-image-vip，sora_image, sora_image-vip可以做为备选。首选gpt-image-1。
+
+`jimeng即梦节点`: 即梦的ComflyJimengApi节点新增参考图生成图片，image url图片链接参考生成图片。
+注意：参考图生成图片会额外消耗上传图片的token费用（具体根据你图片大小来，大部分都是0.000几到0.00几元不等。图片链接有时效性，不做长期储存），
+这个只适用于你没有image url图片链接的前提下使用。
+如果你有image url图片链接，就直接填写在image url里面既可以。
+
+<details>
+<summary>查看更新/Update </summary>  
+ 
+![e1abc11e855680b70985ec9f339a967](https://github.com/user-attachments/assets/6d77c103-d35a-4c6b-804a-4b5add172bcf)
+
+![307e5ea0d789b785fd0a60f01f2b8cf](https://github.com/user-attachments/assets/5c8a7984-ae5e-4cbf-aa47-b09bc7e6f8d6)
+
+</details> 
+
 20250422：
 `Chatgpt节点`: ComflyChatGPTApi节点新增chats输出口，输出多轮对话。
 新增clear_chats,当为Ture的时候，只能image输入什么图片修改什么图片，不支持显示上下文对话。
