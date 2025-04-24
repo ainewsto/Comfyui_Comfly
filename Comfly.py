@@ -2004,6 +2004,8 @@ class ComflyJimengApi:
                 "logo_language": (["中文", "英文"], {"default": "中文"}),
                 "logo_text": ("STRING", {"default": "", "multiline": False}),
                 "logo_opacity": ("FLOAT", {"default": 0.3, "min": 0.0, "max": 1.0, "step": 0.1}),
+                "image": ("IMAGE",),  
+                "image_url": ("STRING", {"default": "", "multiline": False}),  
             }
         }
     
@@ -2039,9 +2041,40 @@ class ComflyJimengApi:
         }
         return language_map.get(language_str, 0)
     
+    def upload_image(self, image_tensor):
+        """Upload image to the file endpoint and return the URL"""
+        try:
+            pil_image = tensor2pil(image_tensor)[0]
+
+            buffered = BytesIO()
+            pil_image.save(buffered, format="PNG")
+            file_content = buffered.getvalue()
+
+            files = {'file': ('image.png', file_content, 'image/png')}
+
+            response = requests.post(
+                "https://ai.comfly.chat/v1/files",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                files=files,
+                timeout=self.timeout
+            )
+            
+            response.raise_for_status()
+            result = response.json()
+            
+            if 'url' in result:
+                return result['url']
+            else:
+                print(f"Unexpected response from file upload API: {result}")
+                return None
+                
+        except Exception as e:
+            print(f"Error uploading image: {str(e)}")
+            return None
+    
     def generate_image(self, prompt, scale=2.5, seed=-1, width=1328, height=1328, use_pre_llm=False, 
                       add_logo=False, logo_position="右下角", logo_language="中文", 
-                      logo_text="", logo_opacity=0.3, api_key=""):
+                      logo_text="", logo_opacity=0.3, api_key="", image=None, image_url=""):
         if api_key.strip():
             self.api_key = api_key
             config = get_config()
@@ -2052,7 +2085,7 @@ class ComflyJimengApi:
             if not self.api_key:
                 error_message = "API key not found in Comflyapi.json"
                 print(error_message)
-                # Create a blank image to return
+
                 blank_image = Image.new('RGB', (width, height), color='white')
                 blank_tensor = pil2tensor(blank_image)
                 return (blank_tensor, error_message, "")
@@ -2060,6 +2093,22 @@ class ComflyJimengApi:
             # Initialize progress bar
             pbar = comfy.utils.ProgressBar(100)
             pbar.update_absolute(10)
+
+            uploaded_image_url = None
+            if image is not None:
+                pbar.update_absolute(20)
+                print("Uploading image...")
+                uploaded_image_url = self.upload_image(image)
+                if uploaded_image_url:
+                    if not prompt.strip():
+                        prompt = "Generate a 3D style version of this image"
+                else:
+                    print("Image upload failed, proceeding without image")
+
+            final_image_url = uploaded_image_url if uploaded_image_url else image_url
+            
+            # Modified prompt if using image
+            model_name = "seedream-3.0"  
             
             position_value = self.get_logo_position_value(logo_position)
             language_value = self.get_logo_language_value(logo_language)
@@ -2073,8 +2122,7 @@ class ComflyJimengApi:
  
             if logo_text:
                 logo_info["logo_text_content"] = logo_text
-            
-            # Prepare the API request
+
             payload = {
                 "req_key": "high_aes_general_v30l_zt2i",
                 "prompt": prompt,
@@ -2086,114 +2134,209 @@ class ComflyJimengApi:
                 "return_url": True,
                 "logo_info": logo_info
             }
-            
-            # Call the API
-            api_url = "https://ai.comfly.chat/volcv/v1?Action=CVProcess&Version=2022-08-31"
-            
-            timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-            response_info = f"**Jimeng Image Generation Request**\n\n"
-            response_info += f"Prompt: {prompt}\n"
-            response_info += f"Scale: {scale}\n"
-            response_info += f"Seed: {seed}\n"
-            response_info += f"Dimensions: {width}x{height}\n"
-            response_info += f"Time: {timestamp}\n\n"
-            
-            try:
+
+            if final_image_url:
+                combined_prompt = f"{final_image_url} {prompt}"
+                
+                messages = [
+                    {
+                        "role": "user",
+                        "content": combined_prompt
+                    }
+                ]
+                
+                chat_payload = {
+                    "model": model_name,
+                    "messages": messages,
+                    "temperature": 0.5,
+                    "top_p": 1,
+                    "presence_penalty": 0,
+                    "max_tokens": 8192,
+                    "stream": True
+                }
+
+                api_url = "https://ai.comfly.chat/v1/chat/completions"
+                headers = self.get_headers()
+
+                pbar.update_absolute(30)
+
                 response = requests.post(
                     api_url,
-                    headers=self.get_headers(),
-                    json=payload,
-                    timeout=self.timeout
+                    headers=headers,
+                    json=chat_payload,
+                    timeout=self.timeout,
+                    stream=True
                 )
-            except requests.exceptions.Timeout:
-                error_message = f"API request timed out after {self.timeout} seconds"
-                print(error_message)
-                response_info += f"Error: {error_message}"
-                blank_image = Image.new('RGB', (width, height), color='white')
-                blank_tensor = pil2tensor(blank_image)
-                return (blank_tensor, response_info, "")
+
+                full_response = ""
+                for line in response.iter_lines():
+                    if line:
+                        line_text = line.decode('utf-8')
+                        if line_text.startswith('data: '):
+                            data = line_text[6:]
+                            if data == '[DONE]':
+                                break
+                            try:
+                                chunk = json.loads(data)
+                                if 'choices' in chunk and chunk['choices']:
+                                    delta = chunk['choices'][0].get('delta', {})
+                                    if 'content' in delta:
+                                        content = delta['content']
+                                        full_response += content
+                            except json.JSONDecodeError:
+                                continue
+
+                image_url = ""
+                image_urls = self.extract_image_urls(full_response)
+                if image_urls:
+                    image_url = image_urls[0]
+                    print(f"Found image URL in response: {image_url}")
+
+                if image_url:
+                    response_info = f"**Image Generation with {model_name}**\n\n"
+                    response_info += f"Prompt: {prompt}\n"
+                    response_info += f"Generated image URL: {image_url}\n\n"
+                    response_info += f"Model response: {full_response}"
+
+                    try:
+                        img_response = requests.get(image_url, timeout=self.timeout)
+                        img_response.raise_for_status()
+                        generated_image = Image.open(BytesIO(img_response.content))
+                        generated_tensor = pil2tensor(generated_image)
+                        pbar.update_absolute(100)
+                        return (generated_tensor, response_info, image_url)
+                    except Exception as e:
+                        error_message = f"Error downloading result image: {str(e)}"
+                        print(error_message)
+                        if image is not None:
+                            return (image, response_info + f"\n\nError: {error_message}", image_url)
+                        else:
+                            blank_image = Image.new('RGB', (width, height), color='white')
+                            blank_tensor = pil2tensor(blank_image)
+                            return (blank_tensor, response_info + f"\n\nError: {error_message}", image_url)
+                else:
+                    error_message = "No image URL found in response"
+                    print(error_message)
+                    response_info = f"**Error: {error_message}**\n\nFull response: {full_response}"
+                    if image is not None:
+                        return (image, response_info, "")
+                    else:
+                        blank_image = Image.new('RGB', (width, height), color='white')
+                        blank_tensor = pil2tensor(blank_image)
+                        return (blank_tensor, response_info, "")
             
-            # Check for status code
-            if response.status_code != 200:
-                error_message = f"API Error: Status {response.status_code}\nResponse: {response.text}"
-                print(error_message)
-                response_info += f"Error: {error_message}"
-                blank_image = Image.new('RGB', (width, height), color='white')
-                blank_tensor = pil2tensor(blank_image)
-                return (blank_tensor, response_info, "")
-                
-            result = response.json()
-            
-            pbar.update_absolute(70)
-            
-            # Check for API errors
-            if result.get("code") != 10000:
-                error_message = f"API Error: {result.get('message', 'Unknown error')}\nDetails: {json.dumps(result, indent=2)}"
-                print(error_message)
-                response_info += f"Error: {error_message}"
-                blank_image = Image.new('RGB', (width, height), color='white')
-                blank_tensor = pil2tensor(blank_image)
-                return (blank_tensor, response_info, "")
-            
-            # Get the result image URL
-            image_url = ""
-            if "image_urls" in result["data"] and result["data"]["image_urls"]:
-                image_url = result["data"]["image_urls"][0]
-                response_info += f"Success!\n\nImage URL: {image_url}\n\n"
-                
-                if "vlm_result" in result["data"] and result["data"]["vlm_result"]:
-                    response_info += f"VLM Description: {result['data']['vlm_result']}\n"
             else:
-                error_message = "No image URL found in response"
-                print(error_message)
-                response_info += f"Error: {error_message}\nFull response: {json.dumps(result, indent=2)}"
-                blank_image = Image.new('RGB', (width, height), color='white')
-                blank_tensor = pil2tensor(blank_image)
-                return (blank_tensor, response_info, "")
-            
-            print(f"Found image URL: {image_url}")
-            
-            # Download the image
-            try:
-                img_response = requests.get(image_url, timeout=self.timeout)
-                img_response.raise_for_status()
-            except requests.exceptions.Timeout:
-                error_message = f"Timeout while downloading result image after {self.timeout} seconds"
-                print(error_message)
-                response_info += f"Error: {error_message}"
-                blank_image = Image.new('RGB', (width, height), color='white')
-                blank_tensor = pil2tensor(blank_image)
-                return (blank_tensor, response_info, image_url)  # Return the URL even though download failed
-            except Exception as e:
-                error_message = f"Error downloading result image: {str(e)}"
-                print(error_message)
-                response_info += f"Error: {error_message}"
-                blank_image = Image.new('RGB', (width, height), color='white')
-                blank_tensor = pil2tensor(blank_image)
-                return (blank_tensor, response_info, image_url)  # Return the URL even though download failed
+                api_url = "https://ai.comfly.chat/volcv/v1?Action=CVProcess&Version=2022-08-31"
                 
-            generated_image = Image.open(BytesIO(img_response.content))
+                timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+                response_info = f"**Jimeng Image Generation Request**\n\n"
+                response_info += f"Prompt: {prompt}\n"
+                response_info += f"Scale: {scale}\n"
+                response_info += f"Seed: {seed}\n"
+                response_info += f"Dimensions: {width}x{height}\n"
+                response_info += f"Time: {timestamp}\n\n"
+                
+                try:
+                    response = requests.post(
+                        api_url,
+                        headers=self.get_headers(),
+                        json=payload,
+                        timeout=self.timeout
+                    )
+                except requests.exceptions.Timeout:
+                    error_message = f"API request timed out after {self.timeout} seconds"
+                    print(error_message)
+                    response_info += f"Error: {error_message}"
+                    blank_image = Image.new('RGB', (width, height), color='white')
+                    blank_tensor = pil2tensor(blank_image)
+                    return (blank_tensor, response_info, "")
+
+                if response.status_code != 200:
+                    error_message = f"API Error: Status {response.status_code}\nResponse: {response.text}"
+                    print(error_message)
+                    response_info += f"Error: {error_message}"
+                    blank_image = Image.new('RGB', (width, height), color='white')
+                    blank_tensor = pil2tensor(blank_image)
+                    return (blank_tensor, response_info, "")
+                    
+                result = response.json()
+                
+                pbar.update_absolute(70)
+
+                if result.get("code") != 10000:
+                    error_message = f"API Error: {result.get('message', 'Unknown error')}\nDetails: {json.dumps(result, indent=2)}"
+                    print(error_message)
+                    response_info += f"Error: {error_message}"
+                    blank_image = Image.new('RGB', (width, height), color='white')
+                    blank_tensor = pil2tensor(blank_image)
+                    return (blank_tensor, response_info, "")
+
+                image_url = ""
+                if "image_urls" in result["data"] and result["data"]["image_urls"]:
+                    image_url = result["data"]["image_urls"][0]
+                    response_info += f"Success!\n\nImage URL: {image_url}\n\n"
+                    
+                    if "vlm_result" in result["data"] and result["data"]["vlm_result"]:
+                        response_info += f"VLM Description: {result['data']['vlm_result']}\n"
+                else:
+                    error_message = "No image URL found in response"
+                    print(error_message)
+                    response_info += f"Error: {error_message}\nFull response: {json.dumps(result, indent=2)}"
+                    blank_image = Image.new('RGB', (width, height), color='white')
+                    blank_tensor = pil2tensor(blank_image)
+                    return (blank_tensor, response_info, "")
+                
+                print(f"Found image URL: {image_url}")
+
+                try:
+                    img_response = requests.get(image_url, timeout=self.timeout)
+                    img_response.raise_for_status()
+                except requests.exceptions.Timeout:
+                    error_message = f"Timeout while downloading result image after {self.timeout} seconds"
+                    print(error_message)
+                    response_info += f"Error: {error_message}"
+                    blank_image = Image.new('RGB', (width, height), color='white')
+                    blank_tensor = pil2tensor(blank_image)
+                    return (blank_tensor, response_info, image_url)  
+                except Exception as e:
+                    error_message = f"Error downloading result image: {str(e)}"
+                    print(error_message)
+                    response_info += f"Error: {error_message}"
+                    blank_image = Image.new('RGB', (width, height), color='white')
+                    blank_tensor = pil2tensor(blank_image)
+                    return (blank_tensor, response_info, image_url)  
+                    
+                generated_image = Image.open(BytesIO(img_response.content))
+                
+                generated_tensor = pil2tensor(generated_image)
+                
+                pbar.update_absolute(100)
             
-            # Convert to tensor
-            generated_tensor = pil2tensor(generated_image)
-            
-            pbar.update_absolute(100)
-        
-            if "request_id" in result:
-                response_info += f"Request ID: {result['request_id']}\n"
-            
-            if "time_elapsed" in result:
-                response_info += f"Processing Time: {result['time_elapsed']}\n"
-            
-            return (generated_tensor, response_info, image_url)
-            
+                if "request_id" in result:
+                    response_info += f"Request ID: {result['request_id']}\n"
+                
+                if "time_elapsed" in result:
+                    response_info += f"Processing Time: {result['time_elapsed']}\n"
+                
+                return (generated_tensor, response_info, image_url)
+                
         except Exception as e:
             error_message = f"Error in image generation: {str(e)}"
             print(error_message)
-            # Return blank image on error with error message
             blank_image = Image.new('RGB', (width, height), color='white')
             blank_tensor = pil2tensor(blank_image)
             return (blank_tensor, error_message, "")
+            
+    def extract_image_urls(self, response_text):
+        """Extract image URLs from markdown format in response"""
+        image_pattern = r'!\[.*?\]\((.*?)\)'
+        matches = re.findall(image_pattern, response_text)
+
+        if not matches:
+            url_pattern = r'https?://\S+\.(?:jpg|jpeg|png|gif|webp)'
+            matches = re.findall(url_pattern, response_text)
+            
+        return matches if matches else []
 
 
 class ComflySeededit:
@@ -2402,7 +2545,7 @@ class ComflyChatGPTApi:
         return {
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
-                "model": ("STRING", {"default": "gpt-4o-image-vip", "multiline": False}),
+                "model": ("STRING", {"default": "gpt-image-1", "multiline": False}),
             },
             "optional": {
                 "api_key": ("STRING", {"default": ""}),
@@ -2442,6 +2585,7 @@ class ComflyChatGPTApi:
         buffered = BytesIO()
         image.save(buffered, format="PNG")
         return base64.b64encode(buffered.getvalue()).decode('utf-8')
+
     def file_to_base64(self, file_path):
         """Convert file to base64 string and return appropriate MIME type"""
         try:
@@ -2457,6 +2601,7 @@ class ComflyChatGPTApi:
         except Exception as e:
             print(f"Error encoding file: {str(e)}")
             return None, None
+
     def extract_image_urls(self, response_text):
         """Extract image URLs from markdown format in response"""
       
@@ -2471,6 +2616,7 @@ class ComflyChatGPTApi:
             all_urls_pattern = r'https?://\S+'
             matches = re.findall(all_urls_pattern, response_text)
         return matches if matches else []
+
     def download_image(self, url, timeout=30):
         """Download image from URL and convert to tensor with improved error handling"""
         try:
@@ -2506,6 +2652,7 @@ class ComflyChatGPTApi:
         except Exception as e:
             print(f"Error downloading image from {url}: {str(e)}")
             return None
+
     def format_conversation_history(self):
         """Format the conversation history for display"""
         if not self.conversation_history:
@@ -2516,6 +2663,7 @@ class ComflyChatGPTApi:
             formatted_history += f"**AI**: {entry['ai']}\n\n"
             formatted_history += "---\n\n"
         return formatted_history.strip()
+
     def process(self, prompt, model, clear_chats=True, files=None, image_url="", images=None, temperature=0.7, 
                max_tokens=4096, top_p=1.0, frequency_penalty=0.0, presence_penalty=0.0, seed=-1,
                image_download_timeout=100, api_key=""):
@@ -2683,6 +2831,7 @@ class ComflyChatGPTApi:
                 blank_tensor = pil2tensor(blank_img)
                 pbar.update_absolute(100)
                 return (blank_tensor, technical_response, image_urls_string, chat_history)  
+                
         except Exception as e:
             error_message = f"Error calling ChatGPT API: {str(e)}"
             print(error_message)
@@ -2693,6 +2842,7 @@ class ComflyChatGPTApi:
                 blank_img = Image.new('RGB', (512, 512), color='white')
                 blank_tensor = pil2tensor(blank_img)
                 return (blank_tensor, error_message, "", self.format_conversation_history()) 
+
     async def stream_response(self, payload, pbar):
         """Stream response from API"""
         full_response = ""
