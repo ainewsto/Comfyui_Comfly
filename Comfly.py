@@ -1,4 +1,6 @@
 import os
+import io
+import math
 import random
 import torch
 import requests
@@ -15,6 +17,7 @@ import uuid
 import folder_paths
 import mimetypes
 from .utils import pil2tensor, tensor2pil
+from comfy.utils import common_upscale
 
 
 def get_config():
@@ -2536,6 +2539,360 @@ class ComflySeededit:
 
 ############################# Chatgpt ###########################
 
+# reference: OpenAIGPTImage1 node from comfyui node
+def downscale_input(image):
+    samples = image.movedim(-1,1)
+
+    total = int(1536 * 1024)
+    scale_by = math.sqrt(total / (samples.shape[3] * samples.shape[2]))
+    if scale_by >= 1:
+        return image
+    width = round(samples.shape[3] * scale_by)
+    height = round(samples.shape[2] * scale_by)
+
+    s = common_upscale(samples, width, height, "lanczos", "disabled")
+    s = s.movedim(1,-1)
+    return s
+
+class Comfly_gpt_image_1_edit:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "prompt": ("STRING", {"multiline": True}),
+            },
+            "optional": {
+                "mask": ("MASK",),
+                "api_key": ("STRING", {"default": ""}),
+                "model": ("STRING", {"default": "gpt-image-1"}),
+                "n": ("INT", {"default": 1, "min": 1, "max": 10}),
+                "quality": (["auto", "high", "medium", "low"], {"default": "auto"}),
+                "size": (["auto", "1024x1024", "1536x1024", "1024x1536"], {"default": "auto"}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("edited_image", "response")
+    FUNCTION = "edit_image"
+    CATEGORY = "Comfly/Chatgpt"
+
+    def __init__(self):
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 300
+
+    def get_headers(self):
+        return {
+            "Authorization": f"Bearer {self.api_key}"
+        }
+    
+    def edit_image(self, image, prompt, model="gpt-image-1", n=1, quality="auto", 
+              seed=0, mask=None, api_key="", size="auto"):
+        if api_key.strip():
+            self.api_key = api_key
+            config = get_config()
+            config['api_key'] = api_key
+            save_config(config)
+        try:
+            if not self.api_key:
+                error_message = "API key not found in Comflyapi.json"
+                print(error_message)
+                return (image, error_message)
+          
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(10)
+            
+            files = {}
+            img_binaries = []
+ 
+            if image is not None:
+                batch_size = image.shape[0]
+                for i in range(batch_size):
+                    single_image = image[i:i+1]
+                    scaled_image = downscale_input(single_image).squeeze()
+                    
+                    image_np = (scaled_image.numpy() * 255).astype(np.uint8)
+                    img = Image.fromarray(image_np)
+                    img_byte_arr = io.BytesIO()
+                    img.save(img_byte_arr, format='PNG')
+                    img_byte_arr.seek(0)
+                    img_binary = img_byte_arr
+                    
+                    if batch_size == 1:
+                        files['image'] = ('image.png', img_binary, 'image/png')
+                    else:
+                        if 'image[]' not in files:
+                            files['image[]'] = []
+                        files['image[]'].append((f'image_{i}.png', img_binary, 'image/png'))
+            
+            if mask is not None:
+                if image.shape[0] != 1:
+                    raise Exception("Cannot use a mask with multiple image")
+                if image is None:
+                    raise Exception("Cannot use a mask without an input image")
+                if mask.shape[1:] != image.shape[1:-1]:
+                    raise Exception("Mask and Image must be the same size")
+                
+                batch, height, width = mask.shape
+                rgba_mask = torch.zeros(height, width, 4, device="cpu")
+                rgba_mask[:,:,3] = (1-mask.squeeze().cpu())
+                scaled_mask = downscale_input(rgba_mask.unsqueeze(0)).squeeze()
+                mask_np = (scaled_mask.numpy() * 255).astype(np.uint8)
+                mask_img = Image.fromarray(mask_np)
+                mask_byte_arr = io.BytesIO()
+                mask_img.save(mask_byte_arr, format='PNG')
+                mask_byte_arr.seek(0)
+
+            files['mask'] = ('mask.png', mask_byte_arr, 'image/png')
+            files['prompt'] = (None, prompt)
+            files['model'] = (None, model)
+            files['n'] = (None, str(n))
+            files['quality'] = (None, quality)
+            
+            # Only include size if it's not "auto"
+            if size != "auto":
+                files['size'] = (None, size)
+
+            response = requests.post(
+                "https://ai.comfly.chat/v1/images/edits",
+                headers=self.get_headers(),
+                files=files,
+                timeout=self.timeout
+            )
+
+            pbar.update_absolute(50)
+
+            if response.status_code != 200:
+                error_message = f"API Error: {response.status_code} - {response.text}"
+                print(error_message)
+                return (image, error_message)
+            result = response.json()
+            
+            if "data" not in result or not result["data"]:
+                error_message = "No image data in response"
+                print(error_message)
+                return (image, error_message)
+            
+            # Process the response
+            edited_images = []
+            image_urls = []
+
+            for item in result["data"]:
+                if "b64_json" in item:
+                    # Decode base64 image
+                    image_data = base64.b64decode(item["b64_json"])
+                    edited_image = Image.open(BytesIO(image_data))
+                    edited_tensor = pil2tensor(edited_image)
+                    edited_images.append(edited_tensor)
+                elif "url" in item:
+                    image_urls.append(item["url"])
+                    # Download and process the image from URL
+                    try:
+                        img_response = requests.get(item["url"])
+                        if img_response.status_code == 200:
+                            edited_image = Image.open(BytesIO(img_response.content))
+                            edited_tensor = pil2tensor(edited_image)
+                            edited_images.append(edited_tensor)
+                    except Exception as e:
+                        print(f"Error downloading image from URL: {str(e)}")
+
+            pbar.update_absolute(90)
+
+            if edited_images:
+                # Combine all edited images into a single tensor
+                combined_tensor = torch.cat(edited_images, dim=0)
+                response_info = f"Successfully edited {len(edited_images)} image(s)\n"
+                response_info += f"Prompt: {prompt}\n"
+                response_info += f"Model: {model}\n"
+                response_info += f"Quality: {quality}\n"
+                if size != "auto":
+                    response_info += f"Size: {size}\n"
+                pbar.update_absolute(100)
+                return (combined_tensor, response_info)
+            else:
+                error_message = "No edited images in response"
+                print(error_message)
+                return (image, error_message)
+            
+        except Exception as e:
+            error_message = f"Error in image editing: {str(e)}"
+            print(error_message)
+            return (image, error_message)
+        
+
+class Comfly_gpt_image_1:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+            },
+            "optional": {
+                "api_key": ("STRING", {"default": ""}),
+                "model": ("STRING", {"default": "gpt-image-1"}),
+                "n": ("INT", {"default": 1, "min": 1, "max": 10}),
+                "quality": (["auto", "high", "medium", "low"], {"default": "auto"}),
+                "size": (["auto", "1024x1024", "1536x1024", "1024x1536"], {"default": "auto"}),
+                "background": (["auto", "transparent", "opaque"], {"default": "auto"}),
+                "output_format": (["png", "jpeg", "webp"], {"default": "png"}),
+                "moderation": (["auto", "low"], {"default": "auto"}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+            }
+        }
+    
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("generated_image", "response")
+    FUNCTION = "generate_image"
+    CATEGORY = "Comfly/Chatgpt"
+
+    def __init__(self):
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 300
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+    
+    def generate_image(self, prompt, model="gpt-image-1", n=1, quality="auto", 
+                size="auto", background="auto", output_format="png", 
+                moderation="auto", seed=0, api_key=""):
+        
+        if api_key.strip():
+            self.api_key = api_key
+            config = get_config()
+            config['api_key'] = api_key
+            save_config(config)
+            
+        try:
+            if not self.api_key:
+                error_message = "API key not found in Comflyapi.json"
+                print(error_message)
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, error_message)
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(10)
+            payload = {
+                "prompt": prompt,
+                "model": model,
+                "n": n,
+                "quality": quality,
+                "background": background,
+                "output_format": output_format,
+                "moderation": moderation,
+            }
+            
+            # Only include size if it's not "auto"
+            if size != "auto":
+                payload["size"] = size
+            
+            response = requests.post(
+                "https://ai.comfly.chat/v1/images/generations",
+                headers=self.get_headers(),
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            pbar.update_absolute(50)
+            if response.status_code != 200:
+                error_message = f"API Error: {response.status_code} - {response.text}"
+                print(error_message)
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, error_message)
+                
+            # Parse the response
+            result = response.json()
+            
+            # Format the response information
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            response_info = f"**GPT-image-1 Generation ({timestamp})**\n\n"
+            response_info += f"Prompt: {prompt}\n"
+            response_info += f"Model: {model}\n"
+            response_info += f"Quality: {quality}\n"
+            if size != "auto":
+                response_info += f"Size: {size}\n"
+            response_info += f"Background: {background}\n"
+            response_info += f"Seed: {seed} (Note: Seed not used by API)\n\n"
+            
+            # Process the generated images
+            generated_images = []
+            image_urls = []
+            
+            if "data" in result and result["data"]:
+                for i, item in enumerate(result["data"]):
+                    pbar.update_absolute(50 + (i+1) * 50 // len(result["data"]))
+                    
+                    if "b64_json" in item:
+                        # Decode base64 image
+                        image_data = base64.b64decode(item["b64_json"])
+                        generated_image = Image.open(BytesIO(image_data))
+                        generated_tensor = pil2tensor(generated_image)
+                        generated_images.append(generated_tensor)
+                    elif "url" in item:
+                        image_urls.append(item["url"])
+                        # Download and process the image from URL
+                        try:
+                            img_response = requests.get(item["url"])
+                            if img_response.status_code == 200:
+                                generated_image = Image.open(BytesIO(img_response.content))
+                                generated_tensor = pil2tensor(generated_image)
+                                generated_images.append(generated_tensor)
+                        except Exception as e:
+                            print(f"Error downloading image from URL: {str(e)}")
+            else:
+                error_message = "No generated images in response"
+                print(error_message)
+                response_info += f"Error: {error_message}\n"
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, response_info)
+                
+            # Add usage information to the response if available
+            if "usage" in result:
+                response_info += "Usage Information:\n"
+                if "total_tokens" in result["usage"]:
+                    response_info += f"Total Tokens: {result['usage']['total_tokens']}\n"
+                if "input_tokens" in result["usage"]:
+                    response_info += f"Input Tokens: {result['usage']['input_tokens']}\n"
+                if "output_tokens" in result["usage"]:
+                    response_info += f"Output Tokens: {result['usage']['output_tokens']}\n"
+                
+                # Add detailed token usage if available
+                if "input_tokens_details" in result["usage"]:
+                    response_info += "Input Token Details:\n"
+                    details = result["usage"]["input_tokens_details"]
+                    if "text_tokens" in details:
+                        response_info += f"  Text Tokens: {details['text_tokens']}\n"
+                    if "image_tokens" in details:
+                        response_info += f"  Image Tokens: {details['image_tokens']}\n"
+            
+            if generated_images:
+                # Combine all generated images into a single tensor
+                combined_tensor = torch.cat(generated_images, dim=0)
+                
+                pbar.update_absolute(100)
+                return (combined_tensor, response_info)
+            else:
+                error_message = "No images were successfully processed"
+                print(error_message)
+                response_info += f"Error: {error_message}\n"
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, response_info)
+                
+        except Exception as e:
+            error_message = f"Error in image generation: {str(e)}"
+            print(error_message)
+            blank_image = Image.new('RGB', (1024, 1024), color='white')
+            blank_tensor = pil2tensor(blank_image)
+            return (blank_tensor, error_message)
+
+
+
 class ComflyChatGPTApi:
 
     _last_generated_image_urls = ""
@@ -2901,6 +3258,8 @@ NODE_CLASS_MAPPINGS = {
     "ComflySeededit": ComflySeededit,
     "ComflyChatGPTApi": ComflyChatGPTApi,
     "ComflyJimengApi": ComflyJimengApi, 
+    "Comfly_gpt_image_1_edit": Comfly_gpt_image_1_edit,
+    "Comfly_gpt_image_1": Comfly_gpt_image_1,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -2917,5 +3276,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ComflyGeminiAPI": "Comfly Gemini API",
     "ComflySeededit": "Comfly Doubao SeedEdit",
     "ComflyChatGPTApi": "Comfly ChatGPT Api",
-    "ComflyJimengApi": "Comfly Jimeng API",  
+    "ComflyJimengApi": "Comfly Jimeng API", 
+    "Comfly_gpt_image_1_edit": "Comfly_gpt_image_1_edit",
+    "Comfly_gpt_image_1": "Comfly_gpt_image_1", 
 }
