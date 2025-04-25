@@ -27,6 +27,26 @@
 
 # 更新 Update：
 
+20250425：
+`Chatgpt节点`: 新增Comfly_gpt_image_1和Comfly_gpt_image_1_edit官方gpt_image_1模型api接口节点。
+![image](https://github.com/user-attachments/assets/9d08d5fc-dde9-4523-955c-31652a74f1a5)
+一共四个分组：default默认分组为官方逆向，价格便宜，缺点就是不稳定，速度慢。按次收费。不支持额外参数选择。
+其他三个组都是官方api组，最优惠的目前是ssvip组。分组需要再令牌里面去修改选择。这3个官方分组优点就是速度快，稳定性高。支持官方参数调整。
+缺点就是贵，但是也比官方便宜。大家可以按照自己的情况选择。
+
+1. Comfly_gpt_image_1 节点：文生图，有耕读参数调整，支持调整生图限制为low。
+
+2. Comfly_gpt_image_1_edit 节点：图生图，支持mask遮罩，支持多图参考。
+
+<details>
+<summary>查看更新/Update </summary>  
+ 
+![3bc790641c44e373aca97ea4a1de47e](https://github.com/user-attachments/assets/1a7a0615-46e5-46b3-af04-32246a23d6f4)
+
+![5efe58fcf7055d675962f40c1ad1cbb](https://github.com/user-attachments/assets/8a90eab5-4242-43bb-ae01-74493b90b6ce)
+
+</details> 
+
 20250424：
 `Chatgpt节点`: ComflyChatGPTApi节点新增官方gpt-image-1，按次计费 0.06，
 旧版的gpt4o-image，gpt4o-image-vip，sora_image, sora_image-vip可以做为备选。首选gpt-image-1。
