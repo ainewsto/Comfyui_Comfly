@@ -28,11 +28,18 @@
 # 更新 Update：
 
 20250425：
-`Chatgpt节点`: 新增Comfly_gpt_image_1和Comfly_gpt_image_1_edit官方gpt_image_1模型api接口节点。
+
+`Chatgpt节点`: 
+新增Comfly_gpt_image_1和Comfly_gpt_image_1_edit官方gpt_image_1模型api接口节点。
+
 ![image](https://github.com/user-attachments/assets/9d08d5fc-dde9-4523-955c-31652a74f1a5)
-一共四个分组：default默认分组为官方逆向，价格便宜，缺点就是不稳定，速度慢。按次收费。不支持额外参数选择。
+
+模型名都是gpt_image_1，区别只是分组不同：
+
+一共四个分组：default默认分组为官方逆向，价格便宜，缺点就是不稳定，速度慢。按次收费。不支持额外参数选择。这个分组的apikey只能用于ComflyChatGPTApi节点。
+
 其他三个组都是官方api组，最优惠的目前是ssvip组。分组需要再令牌里面去修改选择。这3个官方分组优点就是速度快，稳定性高。支持官方参数调整。
-缺点就是贵，但是也比官方便宜。大家可以按照自己的情况选择。
+缺点就是贵，但是也比官方便宜。大家可以按照自己的情况选择。这3个分组的令牌的apikey只能用在下面2个新节点上面！！！
 
 1. Comfly_gpt_image_1 节点：文生图，有耕读参数调整，支持调整生图限制为low。
 
