@@ -5,6 +5,7 @@ import random
 import torch
 import requests
 import time
+import numpy as np
 from PIL import Image
 from io import BytesIO
 import json
