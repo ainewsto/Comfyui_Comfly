@@ -29,6 +29,8 @@
 
 20250425：
 
+视频教程： https://www.bilibili.com/video/BV1jxLUz9ECX
+
 `Chatgpt节点`: 
 新增Comfly_gpt_image_1和Comfly_gpt_image_1_edit官方gpt_image_1模型api接口节点。
 
