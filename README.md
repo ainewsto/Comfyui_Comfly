@@ -36,7 +36,9 @@
 <details>
 <summary>查看更新/Update </summary>  
  
+![2eaf76b077612170647f6861e43e2af](https://github.com/user-attachments/assets/1c4c484f-c3c6-48c6-96c5-58c4ef4e59d5)
 
+![6a43cb051fece84815ac6036bee3a4c](https://github.com/user-attachments/assets/f0fbf71e-8cfb-448e-87cd-1e147bb2f552)
 
 </details> 
 
