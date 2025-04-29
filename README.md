@@ -27,6 +27,19 @@
 
 # 更新 Update：
 
+20250429：
+
+`Chatgpt节点`: Comfly_gpt_image_1_edit新增chats输出口，输出多轮对话。
+新增clear_chats,当为Ture的时候，只能image输入什么图片修改什么图片，不支持显示上下文对话。
+当为Flase的时候，支持对上一次生成的图片进行二次修改。支持显示上下文对话。并且支持多图模式下新增图片参考。
+
+<details>
+<summary>查看更新/Update </summary>  
+ 
+
+
+</details> 
+
 20250425：
 
 视频教程： https://www.bilibili.com/video/BV1jxLUz9ECX

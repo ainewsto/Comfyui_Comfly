@@ -2555,7 +2555,12 @@ def downscale_input(image):
     s = s.movedim(1,-1)
     return s
 
+
 class Comfly_gpt_image_1_edit:
+
+    _last_edited_image = None
+    _conversation_history = []
+    
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -2571,11 +2576,12 @@ class Comfly_gpt_image_1_edit:
                 "quality": (["auto", "high", "medium", "low"], {"default": "auto"}),
                 "size": (["auto", "1024x1024", "1536x1024", "1024x1536"], {"default": "auto"}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                "clear_chats": ("BOOLEAN", {"default": True}),
             }
         }
 
-    RETURN_TYPES = ("IMAGE", "STRING")
-    RETURN_NAMES = ("edited_image", "response")
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING")
+    RETURN_NAMES = ("edited_image", "response", "chats")
     FUNCTION = "edit_image"
     CATEGORY = "Comfly/Chatgpt"
 
@@ -2588,24 +2594,55 @@ class Comfly_gpt_image_1_edit:
             "Authorization": f"Bearer {self.api_key}"
         }
     
+    def format_conversation_history(self):
+        """Format the conversation history for display"""
+        if not Comfly_gpt_image_1_edit._conversation_history:
+            return ""
+        formatted_history = ""
+        for entry in Comfly_gpt_image_1_edit._conversation_history:
+            formatted_history += f"**User**: {entry['user']}\n\n"
+            formatted_history += f"**AI**: {entry['ai']}\n\n"
+            formatted_history += "---\n\n"
+        return formatted_history.strip()
+    
     def edit_image(self, image, prompt, model="gpt-image-1", n=1, quality="auto", 
-              seed=0, mask=None, api_key="", size="auto"):
+              seed=0, mask=None, api_key="", size="auto", clear_chats=True):
         if api_key.strip():
             self.api_key = api_key
             config = get_config()
             config['api_key'] = api_key
             save_config(config)
+ 
+        original_image = image
+        original_batch_size = image.shape[0]
+        use_saved_image = False
+
+        if not clear_chats and Comfly_gpt_image_1_edit._last_edited_image is not None:
+            if original_batch_size > 1:
+                last_batch_size = Comfly_gpt_image_1_edit._last_edited_image.shape[0]
+                last_image_first = Comfly_gpt_image_1_edit._last_edited_image[0:1]
+                if last_image_first.shape[1:] == original_image.shape[1:]:
+                    image = torch.cat([last_image_first, original_image[1:]], dim=0)
+                    use_saved_image = True
+            else:
+
+                image = Comfly_gpt_image_1_edit._last_edited_image
+                use_saved_image = True
+
+        if clear_chats:
+            Comfly_gpt_image_1_edit._conversation_history = []
+
+            
         try:
             if not self.api_key:
                 error_message = "API key not found in Comflyapi.json"
                 print(error_message)
-                return (image, error_message)
+                return (original_image, error_message, self.format_conversation_history())
           
             pbar = comfy.utils.ProgressBar(100)
             pbar.update_absolute(10)
             
             files = {}
-            img_binaries = []
  
             if image is not None:
                 batch_size = image.shape[0]
@@ -2618,18 +2655,17 @@ class Comfly_gpt_image_1_edit:
                     img_byte_arr = io.BytesIO()
                     img.save(img_byte_arr, format='PNG')
                     img_byte_arr.seek(0)
-                    img_binary = img_byte_arr
                     
                     if batch_size == 1:
-                        files['image'] = ('image.png', img_binary, 'image/png')
+                        files['image'] = ('image.png', img_byte_arr, 'image/png')
                     else:
                         if 'image[]' not in files:
                             files['image[]'] = []
-                        files['image[]'].append((f'image_{i}.png', img_binary, 'image/png'))
+                        files['image[]'].append(('image_{}.png'.format(i), img_byte_arr, 'image/png'))
             
             if mask is not None:
                 if image.shape[0] != 1:
-                    raise Exception("Cannot use a mask with multiple image")
+                    raise Exception("Cannot use a mask with multiple images")
                 if image is None:
                     raise Exception("Cannot use a mask without an input image")
                 if mask.shape[1:] != image.shape[1:-1]:
@@ -2645,50 +2681,84 @@ class Comfly_gpt_image_1_edit:
                 mask_img.save(mask_byte_arr, format='PNG')
                 mask_byte_arr.seek(0)
                 files['mask'] = ('mask.png', mask_byte_arr, 'image/png')
-            
-            files['prompt'] = (None, prompt)
-            files['model'] = (None, model)
-            files['n'] = (None, str(n))
-            files['quality'] = (None, quality)
-            
-            # Only include size if it's not "auto"
-            if size != "auto":
-                files['size'] = (None, size)
+
+            if 'image[]' in files:
+
+                data = {
+                    'prompt': prompt,
+                    'model': model,
+                    'n': str(n),
+                    'quality': quality
+                }
                 
-            response = requests.post(
-                "https://ai.comfly.chat/v1/images/edits",
-                headers=self.get_headers(),
-                files=files,
-                timeout=self.timeout
-            )
+                if size != "auto":
+                    data['size'] = size
+
+                image_files = []
+                for file_tuple in files['image[]']:
+                    image_files.append(('image', file_tuple))
+
+                if 'mask' in files:
+                    image_files.append(('mask', files['mask']))
+
+                response = requests.post(
+                    "https://ai.comfly.chat/v1/images/edits",
+                    headers=self.get_headers(),
+                    data=data,
+                    files=image_files,
+                    timeout=self.timeout
+                )
+            else:
+                data = {
+                    'prompt': prompt,
+                    'model': model,
+                    'n': str(n),
+                    'quality': quality
+                }
+                
+                if size != "auto":
+                    data['size'] = size
+
+                request_files = []
+
+                if 'image' in files:
+                    request_files.append(('image', files['image']))
+
+                if 'mask' in files:
+                    request_files.append(('mask', files['mask']))
+
+                response = requests.post(
+                    "https://ai.comfly.chat/v1/images/edits",
+                    headers=self.get_headers(),
+                    data=data,
+                    files=request_files,
+                    timeout=self.timeout
+                )
 
             pbar.update_absolute(50)
 
             if response.status_code != 200:
                 error_message = f"API Error: {response.status_code} - {response.text}"
                 print(error_message)
-                return (image, error_message)
+                return (original_image, error_message, self.format_conversation_history())
             result = response.json()
             
             if "data" not in result or not result["data"]:
                 error_message = "No image data in response"
                 print(error_message)
-                return (image, error_message)
-            
-            # Process the response
+                return (original_image, error_message, self.format_conversation_history())
+
             edited_images = []
             image_urls = []
 
             for item in result["data"]:
                 if "b64_json" in item:
-                    # Decode base64 image
                     image_data = base64.b64decode(item["b64_json"])
                     edited_image = Image.open(BytesIO(image_data))
                     edited_tensor = pil2tensor(edited_image)
                     edited_images.append(edited_tensor)
                 elif "url" in item:
                     image_urls.append(item["url"])
-                    # Download and process the image from URL
                     try:
                         img_response = requests.get(item["url"])
                         if img_response.status_code == 200:
@@ -2701,25 +2771,39 @@ class Comfly_gpt_image_1_edit:
             pbar.update_absolute(90)
 
             if edited_images:
-                # Combine all edited images into a single tensor
                 combined_tensor = torch.cat(edited_images, dim=0)
                 response_info = f"Successfully edited {len(edited_images)} image(s)\n"
                 response_info += f"Prompt: {prompt}\n"
                 response_info += f"Model: {model}\n"
                 response_info += f"Quality: {quality}\n"
+                
+                if use_saved_image:
+                    response_info += "[Using previous edited image as input]\n"
+                    
                 if size != "auto":
                     response_info += f"Size: {size}\n"
+
+                Comfly_gpt_image_1_edit._conversation_history.append({
+                    "user": f"Edit image with prompt: {prompt}",
+                    "ai": f"Generated edited image with {model}"
+                })
+ 
+                Comfly_gpt_image_1_edit._last_edited_image = combined_tensor
+                
                 pbar.update_absolute(100)
-                return (combined_tensor, response_info)
+                return (combined_tensor, response_info, self.format_conversation_history())
             else:
                 error_message = "No edited images in response"
                 print(error_message)
-                return (image, error_message)
+                return (original_image, error_message, self.format_conversation_history())
             
         except Exception as e:
             error_message = f"Error in image editing: {str(e)}"
+            import traceback
+            print(traceback.format_exc())  
             print(error_message)
-            return (image, error_message)
+            return (original_image, error_message, self.format_conversation_history())
+
         
 
 class Comfly_gpt_image_1:
