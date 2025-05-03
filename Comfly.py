@@ -225,9 +225,7 @@ class Comfly_upload(ComflyBaseNode):
 class Comfly_Mj(ComflyBaseNode):
     """
     Comfly_Mj node
-
     Processes text or image inputs using Midjourney AI model and returns the processed results.
-
     Inputs:
         text (STRING, optional): Input text.
         api_key (STRING): API key for Midjourney.
@@ -246,9 +244,9 @@ class Comfly_Mj(ComflyBaseNode):
         sv (STRING): Style variation (1-4).
         seed (INT): Random seed.
         cref (STRING): Creative reference.
+        oref (STRING): Object reference.
         sref (STRING): Style reference.
         positive (STRING): Additional positive prompt to be appended to the main prompt.
-
     Outputs:
         image_url (STRING): URL of the processed image.
         text (STRING): Processed text output.
@@ -258,14 +256,14 @@ class Comfly_Mj(ComflyBaseNode):
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "speed": (["turbo mode", "fast mode", "relax mode"], {"default": "fast mode"}),
                 "text": ("STRING", {"multiline": True}),
+                "speed": (["turbo mode", "fast mode", "relax mode"], {"default": "fast mode"}), 
             },
             "optional": {
-                "api_key": ("STRING", {"default": ""}),  
                 "text_en": ("STRING", {"multiline": True, "default": ""}),
-                "model_version": (["v 7", "v 6.1", "v 6.0", "v 5.2", "v 5.1", "niji 6", "niji 5", "niji 4"], {"default": "v 6.1"}),
+                "api_key": ("STRING", {"default": ""}),  
                 "ar": ("STRING", {"default": "1:1"}),
+                "model_version": (["v 7", "v 6.1", "v 6.0", "v 5.2", "v 5.1", "niji 6", "niji 5", "niji 4"], {"default": "v 6.1"}),
                 "no": ("STRING", {"default": "", "forceInput": True}),
                 "c": ("INT", {"default": 0, "min": 0, "max": 100, "forceInput": True}),
                 "s": ("INT", {"default": 0, "min": 0, "max": 1000, "forceInput": True}),
@@ -274,15 +272,16 @@ class Comfly_Mj(ComflyBaseNode):
                 "sw": ("INT", {"default": 0, "min": 0, "max": 1000, "forceInput": True}),
                 "cw": ("INT", {"default": 0, "min": 0, "max": 100, "forceInput": True}),
                 "sv": (["1", "2", "3", "4"], {"default": "1", "forceInput": True}),
+                "oref": ("STRING", {"default": "none", "forceInput": True}),
+                "cref": ("STRING", {"default": "none", "forceInput": True}),
+                "sref": ("STRING", {"default": "none", "forceInput": True}),
+                "positive": ("STRING", {"default": "", "forceInput": True}),                
                 "video": ("BOOLEAN", {"default": False}),
                 "tile": ("BOOLEAN", {"default": False}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
-                "cref": ("STRING", {"default": "none", "forceInput": True}),
-                "sref": ("STRING", {"default": "none", "forceInput": True}),
-                "positive": ("STRING", {"default": "", "forceInput": True}),
             }
         }
-
+    
     RETURN_TYPES = ("IMAGE", "STRING", "STRING")  
     RETURN_NAMES = ("image", "text", "taskId")    
     OUTPUT_NODE = True
@@ -296,7 +295,7 @@ class Comfly_Mj(ComflyBaseNode):
         self.image = None
         self.text = ""
 
-    def process_input(self, speed, text, text_en="", image=None, model_version=None, ar=None, no=None, c=None, s=None, iw=None, r=None, sw=None, cw=None, sv=None, video=False, tile=False, seed=0, cref="none", sref="none", positive="", api_key=""):
+    def process_input(self, speed, text, text_en="", image=None, model_version=None, ar=None, no=None, c=None, s=None, iw=None, r=None, sw=None, cw=None, sv=None, video=False, tile=False, seed=0, cref="none", oref="none", sref="none", positive="", api_key=""):
         if api_key.strip():
             self.api_key = api_key
             config = get_config()
@@ -335,6 +334,8 @@ class Comfly_Mj(ComflyBaseNode):
             prompt += " --video"
         if tile:
             prompt += " --tile"
+        if oref != "none":
+            prompt += f" --oref {oref}"    
         if cref != "none":
             prompt += f" --cref {cref}"
         if sref != "none":
@@ -347,14 +348,14 @@ class Comfly_Mj(ComflyBaseNode):
         elif self.text:
             pbar = comfy.utils.ProgressBar(10)
             image_url, text, taskId = self.process_text(pbar, ar, no, c, s, iw, tile, r, video, sw, cw, sv, seed)
-
+            
             response = requests.get(image_url)
             image = Image.open(BytesIO(response.content))
             tensor_image = pil2tensor(image)
             return tensor_image, text, taskId
         else:
             raise ValueError("Either image or text input must be provided for Midjourney model.")
-
+        
         return image_url, text, taskId
 
     async def process_text_midjourney(self, text, pbar, ar, no, c, s, iw, tile, r, video, sw, cw, sv, seed):
