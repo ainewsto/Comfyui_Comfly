@@ -1005,7 +1005,12 @@ for route in routes:
 def stop_process_on_port(port):
    for proc in psutil.process_iter(['pid', 'name']):
        try:
-           for conn in proc.connections():
+           try:
+               connections = proc.net_connections()
+           except AttributeError:
+               connections = proc.connections()
+               
+           for conn in connections:
                if conn.laddr.port == port:
                    proc.terminate()
                    proc.wait()
