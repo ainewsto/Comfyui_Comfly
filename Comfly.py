@@ -155,24 +155,21 @@ class ComflyBaseNode:
 class Comfly_upload(ComflyBaseNode):
     """
     Comfly_upload node
-
     Uploads an image to Midjourney and returns the URL link.
-
     Inputs:
         image (IMAGE): Input image to be uploaded.
-
     Outputs:
         url (STRING): URL link of the uploaded image.
     """
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
                 "image": ("IMAGE",),
+                "api_key": ("STRING", {"default": ""}),
             },
         }
-
+    
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("url",)
     FUNCTION = "upload_image"
@@ -186,6 +183,7 @@ class Comfly_upload(ComflyBaseNode):
         image_format = "PNG"  # Specify the desired image format
         image.save(buffered, format=image_format)
         image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+
         # Prepare the request payload
         payload = {
             "base64Array": [f"data:image/{image_format.lower()};base64,{image_base64}"],
@@ -206,12 +204,19 @@ class Comfly_upload(ComflyBaseNode):
                     else:
                         error_message = f"Error uploading image to Midjourney: {response.status}"
                         raise Exception(error_message)
+                    
         except asyncio.TimeoutError:
             error_message = f"Timeout error: Request to upload image timed out after {self.timeout} seconds"
             print(error_message)
             raise Exception(error_message)
-
-    def upload_image(self, image):
+        
+    def upload_image(self, image, api_key=""):
+        if api_key.strip():
+            self.api_key = api_key
+            config = get_config()
+            config['api_key'] = api_key
+            save_config(config)
+            
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -405,7 +410,6 @@ class Comfly_Mj(ComflyBaseNode):
 class Comfly_Mju(ComflyBaseNode):
     class MidjourneyError(Exception):
         pass
-
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -415,6 +419,9 @@ class Comfly_Mju(ComflyBaseNode):
                 "U2": ("BOOLEAN", {"default": False}),
                 "U3": ("BOOLEAN", {"default": False}),
                 "U4": ("BOOLEAN", {"default": False})
+            },
+            "optional": {
+                "api_key": ("STRING", {"default": ""})
             }
         }
 
@@ -423,7 +430,13 @@ class Comfly_Mju(ComflyBaseNode):
     FUNCTION = "run"
     CATEGORY = "Comfly/Midjourney"
 
-    def run(self, taskId, U1=False, U2=False, U3=False, U4=False):
+    def run(self, taskId, U1=False, U2=False, U3=False, U4=False, api_key=""):
+        if api_key.strip():
+            self.api_key = api_key
+            config = get_config()
+            config['api_key'] = api_key
+            save_config(config)
+            
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
@@ -664,6 +677,7 @@ class Comfly_Mjv(ComflyBaseNode):
                 "taskId": ("STRING", {"default": "", "forceInput": True}),
             },
             "optional": {
+                "api_key": ("STRING", {"default": ""}),
                 "upsample_v6_2x_subtle": ("BOOLEAN", {"default": False}),
                 "upsample_v6_2x_creative": ("BOOLEAN", {"default": False}),
                 "costume_zoom": ("BOOLEAN", {"default": False}),
@@ -699,7 +713,12 @@ class Comfly_Mjv(ComflyBaseNode):
                     print(error_message)
                     raise Exception(error_message)
 
-    def run(self, taskId, upsample_v6_2x_subtle=False, upsample_v6_2x_creative=False, costume_zoom=False, zoom="", pan_left=False, pan_right=False, pan_up=False, pan_down=False):
+    def run(self, taskId, upsample_v6_2x_subtle=False, upsample_v6_2x_creative=False, costume_zoom=False, zoom="", pan_left=False, pan_right=False, pan_up=False, pan_down=False, api_key=""):
+        if api_key.strip():
+            self.api_key = api_key
+            config = get_config()
+            config['api_key'] = api_key
+            save_config(config)
        
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -1328,6 +1347,9 @@ class Comfly_video_extend:
             "required": {
                 "video_id": ("STRING", {"default": "", "multiline": False, "forceInput": True}),
                 "prompt": ("STRING", {"default": "", "multiline": True}),
+            },
+            "optional": {
+                "api_key": ("STRING", {"default": ""})
             }
         }
 
@@ -1340,7 +1362,13 @@ class Comfly_video_extend:
         self.api_key = get_config().get('api_key', '')
         self.timeout = 300
 
-    def extend_video(self, video_id, prompt=""):
+    def extend_video(self, video_id, prompt="", api_key=""):
+        if api_key.strip():
+            self.api_key = api_key
+            config = get_config()
+            config['api_key'] = api_key
+            save_config(config)
+            
         if not self.api_key:
             error_response = {"task_status": "failed", "task_status_msg": "API key not found in Comflyapi.json"}
             return ("", "", json.dumps(error_response))
@@ -1513,6 +1541,7 @@ class Comfly_lip_sync:
                 "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})
             },
             "optional": {
+                "api_key": ("STRING", {"default": ""}),
                 "video_url": ("STRING", {"default": ""}),
                 "audio_type": (["file", "url"], {"default": "file"}),
                 "audio_file": ("STRING", {"default": ""}),
@@ -1532,8 +1561,14 @@ class Comfly_lip_sync:
         self.en_voice_map = {name: voice_id for name, voice_id in self.__class__.en_voices}
         
     def process_lip_sync(self, video_id, task_id, mode, text, voice_language, zh_voice, en_voice, voice_speed, seed=0,
-                    video_url="", audio_type="file", audio_file="", audio_url=""):
+                    video_url="", audio_type="file", audio_file="", audio_url="", api_key=""):
     
+        if api_key.strip():
+            self.api_key = api_key
+            config = get_config()
+            config['api_key'] = api_key
+            save_config(config)
+            
         if not self.api_key:
             error_response = {"task_status": "failed", "task_status_msg": "API key not found in Comflyapi.json"}
             return ("", "", "", json.dumps(error_response))
@@ -3366,3 +3401,4 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_gpt_image_1_edit": "Comfly_gpt_image_1_edit",
     "Comfly_gpt_image_1": "Comfly_gpt_image_1", 
 }
+
