@@ -946,7 +946,7 @@ class Comfly_kling_text2video:
         return {
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
-                "model_name": (["kling-v1-6", "kling-v1-5", "kling-v1"], {"default": "kling-v1-6"}),
+                "model_name": (["kling-v2-master", "kling-v1-6", "kling-v1-5", "kling-v1"], {"default": "kling-v1-6"}),
                 "imagination": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.05}),
                 "aspect_ratio": (["1:1", "16:9", "9:16"], {"default": "1:1"}),
                 "mode": (["std", "pro"], {"default": "std"}),
@@ -973,6 +973,48 @@ class Comfly_kling_text2video:
         super().__init__()
         self.api_key = get_config().get('api_key', '')
         self.timeout = 300
+        self.model_capabilities = {
+            "kling-v1": {
+                "std": {
+                    "5": {"video": True, "camera": True},
+                    "10": {"video": True, "camera": False}
+                },
+                "pro": {
+                    "5": {"video": True, "camera": False},
+                    "10": {"video": True, "camera": False}
+                }
+            },
+            "kling-v1-5": {
+                "std": {
+                    "5": {"video": False, "camera": False},
+                    "10": {"video": False, "camera": False}
+                },
+                "pro": {
+                    "5": {"video": False, "camera": True},
+                    "10": {"video": False, "camera": False}
+                }
+            },
+            "kling-v1-6": {
+                "std": {
+                    "5": {"video": True, "camera": False},
+                    "10": {"video": True, "camera": False}
+                },
+                "pro": {
+                    "5": {"video": False, "camera": False},
+                    "10": {"video": False, "camera": False}
+                }
+            },
+            "kling-v2-master": {
+                "std": {
+                    "5": {"video": False, "camera": False},
+                    "10": {"video": False, "camera": False}
+                },
+                "pro": {
+                    "5": {"video": False, "camera": False},
+                    "10": {"video": False, "camera": False}
+                }
+            }
+        }
 
     def get_headers(self):
         return {
@@ -1013,13 +1055,13 @@ class Comfly_kling_text2video:
             camera_json = self.get_camera_json(camera, camera_value)
         else:
             camera_json = self.get_camera_json("none", 0)
+            
         payload = {
             "prompt": prompt,
             "negative_prompt": negative_prompt,
             "image": "",
             "image_tail": "",
             "aspect_ratio": aspect_ratio,
-            "mode": mode,
             "duration": duration,
             "model_name": model_name,
             "imagination": imagination,
@@ -1027,6 +1069,12 @@ class Comfly_kling_text2video:
             "camera_json": camera_json,
             "seed": seed
         }
+
+        if model_name != "kling-v2-master":
+            payload["mode"] = mode
+        else:
+            print("Note: kling-v2-master model doesn't use mode parameter")
+            
         try:
             pbar = comfy.utils.ProgressBar(100)  
             response = requests.post(
@@ -1062,8 +1110,7 @@ class Comfly_kling_text2video:
                     video_url = status_result["data"]["task_result"]["videos"][0]["url"]
                     video_id = status_result["data"]["task_result"]["videos"][0]["id"]
                     video_path = self.download_video(video_url)
-                    
-                    # Format the response with task status information
+
                     response_data = {
                         "task_status": "succeed",
                         "task_status_msg": "Video generated successfully",
@@ -1098,6 +1145,7 @@ class Comfly_kling_text2video:
         return video_path
 
 
+
 class Comfly_kling_image2video:
     @classmethod 
     def INPUT_TYPES(cls):
@@ -1105,7 +1153,7 @@ class Comfly_kling_image2video:
             "required": {
                 "image": ("IMAGE",),
                 "prompt": ("STRING", {"multiline": True}),
-                "model_name": (["kling-v1-6", "kling-v1-5", "kling-v1"], {"default": "kling-v1-6"}),
+                "model_name": (["kling-v2-master", "kling-v1-6", "kling-v1-5", "kling-v1"], {"default": "kling-v1-6"}),
                 "imagination": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.05}),
                 "aspect_ratio": (["1:1", "16:9", "9:16"], {"default": "1:1"}),
                 "mode": (["std", "pro"], {"default": "std"}),
@@ -1120,7 +1168,7 @@ class Comfly_kling_image2video:
                 "camera": (["none", "horizontal", "vertical", "zoom", "vertical_shake", "horizontal_shake", 
                           "rotate", "master_down_zoom", "master_zoom_up", "master_right_rotate_zoom", 
                           "master_left_rotate_zoom"], {"default": "none"}),
-                "camera_value": ("FLOAT", {"default": 0, "min": -10, "max": 10, "step": 0.1})
+                "camera_value": ("FLOAT", {"default": 0, "min": -10, "max": 10, "step": 0.1}),      
             }
         }
 
@@ -1144,6 +1192,10 @@ class Comfly_kling_image2video:
             "kling-v1-6": {
                 "std": {"5": False, "10": False},  
                 "pro": {"5": True, "10": True}
+            },
+            "kling-v2-master": {
+                "std": {"5": False, "10": False},
+                "pro": {"5": False, "10": False}
             }
         }
 
@@ -1174,9 +1226,10 @@ class Comfly_kling_image2video:
         has_tail_image = image_tail is not None
 
         if has_tail_image:
-            tail_compatible = self.check_tail_image_compatibility(model_name, mode, duration)
+            check_mode = "std" if model_name == "kling-v2-master" else mode
+            tail_compatible = self.check_tail_image_compatibility(model_name, check_mode, duration)
             if not tail_compatible:
-                warning_message = f"Warning: model/mode/duration({model_name}/{mode}/{duration}) does not support using both image and image_tail."
+                warning_message = f"Warning: model/mode/duration({model_name}/{mode if model_name != 'kling-v2-master' else 'N/A'}/{duration}) does not support using both image and image_tail."
                 print(warning_message)
 
                 if model_name == "kling-v1-5" or model_name == "kling-v1-6":
@@ -1197,15 +1250,13 @@ class Comfly_kling_image2video:
             camera_json = self.get_camera_json("none", 0)
             
         try:
-            # Convert image to base64, ensuring correct format
             pil_image = tensor2pil(image)[0]
             if pil_image.mode != 'RGB':
                 pil_image = pil_image.convert('RGB')
             buffered = BytesIO()
             pil_image.save(buffered, format="JPEG", quality=95)
             image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
-            
-            # Process tail image if provided
+
             image_tail_base64 = ""
             if has_tail_image:
                 pil_tail = tensor2pil(image_tail)[0]
@@ -1221,7 +1272,6 @@ class Comfly_kling_image2video:
                 "image": image_base64,
                 "image_tail": image_tail_base64,
                 "aspect_ratio": aspect_ratio,
-                "mode": mode,
                 "duration": duration,
                 "model_name": model_name,
                 "imagination": imagination,  
@@ -1230,8 +1280,15 @@ class Comfly_kling_image2video:
                 "seed": seed
             }
             
-            # Print the request payload structure (for debugging)
-            print(f"Sending request with parameters: model={model_name}, mode={mode}, duration={duration}, aspect_ratio={aspect_ratio}")
+            if model_name != "kling-v2-master":
+                payload["mode"] = mode
+
+            print(f"Sending request with parameters: model={model_name}, duration={duration}, aspect_ratio={aspect_ratio}")
+            if model_name != "kling-v2-master":
+                print(f"Mode: {mode}")
+            else:
+                print("Note: kling-v2-master model doesn't use mode parameter")
+                
             print(f"Image base64 length: {len(image_base64)}")
             if has_tail_image:
                 print(f"Image tail base64 length: {len(image_tail_base64)}")

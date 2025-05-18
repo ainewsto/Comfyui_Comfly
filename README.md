@@ -27,6 +27,10 @@
 
 # 更新 Update：
 
+20250518：
+
+`Kling节点`: 可灵节点新增kling-v2-master的可灵2.0模型。价格很贵，按需使用。
+
 20250429：
 
 `Chatgpt节点`: Comfly_gpt_image_1_edit新增chats输出口，输出多轮对话。
