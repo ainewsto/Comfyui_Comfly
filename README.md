@@ -27,10 +27,15 @@
 
 # 更新 Update：
 
-20250518：
+20250526：
 
 `Jimeng即梦视频节点`: 新增ComflyJimengVideoApi节点。即梦3.0视频，按次收费，5s是0.6元，10s是1.2元。
+<details>
+<summary>查看更新/Update </summary>  
+ 
+![75ae4f4c3b061c0a7f7d1b1eb1b0264](https://github.com/user-attachments/assets/a8533eef-8233-4c35-ab1b-c9a26d5ddf72)
 
+</details> 
 
 20250518：
 
