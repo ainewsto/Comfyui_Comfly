@@ -2453,8 +2453,8 @@ class ComflyJimengVideoApi:
             }
         }
     
-    RETURN_TYPES = ("VIDEO", "STRING", "STRING")
-    RETURN_NAMES = ("video", "task_id", "response")
+    RETURN_TYPES = ("VIDEO", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("video", "task_id", "response", "video_url")
     FUNCTION = "generate_video"
     CATEGORY = "Comfly/Doubao"
 
@@ -2508,7 +2508,7 @@ class ComflyJimengVideoApi:
             
         if not self.api_key:
             error_response = {"code": "error", "message": "API key not found in Comflyapi.json"}
-            return ("", "", json.dumps(error_response))
+            return ("", "", json.dumps(error_response), "")
             
         try:
             pbar = comfy.utils.ProgressBar(100)
@@ -2544,27 +2544,37 @@ class ComflyJimengVideoApi:
             if response.status_code != 200:
                 error_message = f"API error: {response.status_code} - {response.text}"
                 print(error_message)
-                return ("", "", json.dumps({"code": "error", "message": error_message}))
+                return ("", "", json.dumps({"code": "error", "message": error_message}), "")
                 
             result = response.json()
             
             if result.get("code") != "success":
                 error_message = f"API returned error: {result.get('message', 'Unknown error')}"
                 print(error_message)
-                return ("", "", json.dumps({"code": "error", "message": error_message}))
+                return ("", "", json.dumps({"code": "error", "message": error_message}), "")
                 
             task_id = result.get("data")
             if not task_id:
                 error_message = "No task ID returned from API"
                 print(error_message)
-                return ("", "", json.dumps({"code": "error", "message": error_message}))
+                return ("", "", json.dumps({"code": "error", "message": error_message}), "")
             
             pbar.update_absolute(40)
             video_url = None
             attempts = 0
-            max_attempts = 60  
-            
+            max_attempts = 18  
+            start_time = time.time()
+            max_wait_time = 90  
+          
             while attempts < max_attempts:
+                current_time = time.time()
+                elapsed_time = current_time - start_time
+
+                if elapsed_time > max_wait_time:
+                    error_message = f"Video generation timeout after {elapsed_time:.1f} seconds (max: {max_wait_time}s)"
+                    print(error_message)
+                    return ("", task_id, json.dumps({"code": "error", "message": error_message}), "")
+                
                 time.sleep(5)  
                 attempts += 1
                 
@@ -2572,73 +2582,91 @@ class ComflyJimengVideoApi:
                     status_response = requests.get(
                         f"https://ai.comfly.chat/jimeng/fetch/{task_id}",
                         headers=self.get_headers(),
-                        timeout=self.timeout
+                        timeout=30
                     )
                     
                     if status_response.status_code != 200:
-                        print(f"Status check failed with code: {status_response.status_code}")
                         continue
                         
                     status_result = status_response.json()
 
                     if status_result.get("code") != "success":
-                        print(f"API returned error: {status_result.get('message', 'Unknown error')}")
                         continue
 
-                    progress = status_result.get("data", {}).get("progress", "0%")
-                    status = status_result.get("data", {}).get("status", "")
+                    data = status_result.get("data", {})
+                    progress = data.get("progress", "0%")
+                    status = data.get("status", "")
 
                     try:
-                        progress_num = int(progress.rstrip('%'))
-                        pbar_value = min(90, 40 + progress_num * 50 / 100)
-                        pbar.update_absolute(pbar_value)
+                        if progress.endswith('%'):
+                            progress_num = int(progress.rstrip('%'))
+                            pbar_value = min(90, 40 + progress_num * 50 / 100)
+                            pbar.update_absolute(pbar_value)
                     except (ValueError, AttributeError):
                         progress_value = min(80, 40 + (attempts * 40 // max_attempts))
                         pbar.update_absolute(progress_value)
 
-                    if status == "SUCCESS" and progress == "100%":
-                        if "data" in status_result.get("data", {}) and "data" in status_result["data"]:
-                            video_data = status_result["data"]["data"]
-                            if "video" in video_data:
-                                video_url = video_data["video"]
-                                break
+                    if status == "SUCCESS":
+                        video_url = None
 
-                        nested_data = status_result.get("data", {}).get("data", {}).get("task_result", {})
-                        if nested_data:
-                            videos = nested_data.get("videos", [])
-                            if videos and len(videos) > 0 and "url" in videos[0]:
-                                video_url = videos[0]["url"]
-                                break
+                        if "video" in data:
+                            video_url = data["video"]
 
-                    if status == "FAILED":
-                        fail_reason = status_result.get("data", {}).get("fail_reason", "Unknown error")
+                        elif "data" in data and isinstance(data["data"], dict):
+                            nested_data = data["data"]
+                            if "video" in nested_data:
+                                video_url = nested_data["video"]
+                            elif "videos" in nested_data and isinstance(nested_data["videos"], list) and len(nested_data["videos"]) > 0:
+                                if "url" in nested_data["videos"][0]:
+                                    video_url = nested_data["videos"][0]["url"]
+
+                        elif "task_result" in data:
+                            task_result = data["task_result"]
+                            if "videos" in task_result and isinstance(task_result["videos"], list) and len(task_result["videos"]) > 0:
+                                if "url" in task_result["videos"][0]:
+                                    video_url = task_result["videos"][0]["url"]
+                        
+                        if video_url:
+                            break
+                        else:
+                            continue
+
+                    elif status == "FAILED":
+                        fail_reason = data.get("fail_reason", "Unknown error")
                         error_message = f"Video generation failed: {fail_reason}"
                         print(error_message)
-                        return ("", task_id, json.dumps({"code": "error", "message": error_message}))
+                        return ("", task_id, json.dumps({"code": "error", "message": error_message}), "")
                     
+                    elif status in ["PENDING", "PROCESSING", "RUNNING"]:
+                        continue
+                    else:
+                        continue
+                    
+                except requests.exceptions.Timeout:
+                    continue
                 except Exception as e:
-                    print(f"Error checking video status: {str(e)}")
-                    import traceback
-                    traceback.print_exc()
+                    continue
             
             if not video_url:
-                error_message = "Video generation timed out or failed to retrieve URL"
+                error_message = f"Video generation timeout or failed to retrieve video URL after {attempts} attempts, elapsed time: {elapsed_time:.1f}s"
                 print(error_message)
-                return ("", task_id, json.dumps({"code": "error", "message": error_message}))
+                return ("", task_id, json.dumps({"code": "error", "message": error_message}), "")
 
             pbar.update_absolute(95)
             video_path = self.download_video(video_url)
 
-            pbar.update_absolute(100)            
-            return (video_path, task_id, json.dumps({"code": "success", "url": video_url}))
+            pbar.update_absolute(100)
+            print(f"Video generation completed, saved to: {video_path}")            
+            return (video_path, task_id, json.dumps({"code": "success", "url": video_url}), video_url)
             
         except Exception as e:
             error_message = f"Error generating video: {str(e)}"
             print(error_message)
             import traceback
             traceback.print_exc()
-            return ("", "", json.dumps({"code": "error", "message": error_message}))
-            
+            return ("", "", json.dumps({"code": "error", "message": error_message}), "")
+
+
     def download_video(self, video_url):
         """Download video from URL and save to output directory"""
         try:
