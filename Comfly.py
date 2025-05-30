@@ -3668,6 +3668,192 @@ class ComflyChatGPTApi:
             raise TimeoutError(f"API request timed out after {self.timeout} seconds")
         except Exception as e:
             raise Exception(f"Error in streaming response: {str(e)}")
+
+
+
+############################# Flux ###########################
+
+class Comfly_Flux_Kontext:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+            },
+            "optional": {
+                "input_image": ("IMAGE",),
+                "model": (["flux-kontext-pro", "flux-kontext-max"], {"default": "flux-kontext-pro"}),
+                "apikey": ("STRING", {"default": ""}),
+                "aspect_ratio": (["1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "21:9", "9:21"], 
+                         {"default": "1:1"}),
+                "n": ("INT", {"default": 1, "min": 1, "max": 4}),
+                "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647})
+            }
+        }
+    
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("image", "image_url")
+    FUNCTION = "generate_image"
+    CATEGORY = "Comfly/Flux"
+
+    def __init__(self):
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 300
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+    
+    def upload_image(self, image_tensor):
+        """Upload image to the file endpoint and return the URL"""
+        try:
+            pil_image = tensor2pil(image_tensor)[0]
+            buffered = BytesIO()
+            pil_image.save(buffered, format="PNG")
+            file_content = buffered.getvalue()
+            
+            files = {'file': ('image.png', file_content, 'image/png')}
+            
+            response = requests.post(
+                "https://ai.comfly.chat/v1/files",
+                headers={"Authorization": f"Bearer {self.api_key}"},
+                files=files,
+                timeout=self.timeout
+            )
+            
+            response.raise_for_status()
+            result = response.json()
+            
+            if 'url' in result:
+                return result['url']
+            else:
+                print(f"Unexpected response from file upload API: {result}")
+                return None
+                
+        except Exception as e:
+            print(f"Error uploading image: {str(e)}")
+            return None
+    
+    def generate_image(self, prompt, input_image=None, model="flux-kontext-pro", 
+                      apikey="", aspect_ratio="1:1", n=1, seed=-1):
+        if apikey.strip():
+            self.api_key = apikey
+            config = get_config()
+            config['api_key'] = apikey
+            save_config(config)
+            
+        if not self.api_key:
+            error_message = "API key not found in Comflyapi.json"
+            print(error_message)
+
+            if input_image is None:
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, "")
+            return (input_image, "")
+        
+        try:
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(10)
+
+            final_prompt = prompt
+            if input_image is not None:
+
+                image_url = self.upload_image(input_image)
+                if image_url:
+
+                    final_prompt = f"{image_url} {prompt}"
+                else:
+                    print("Failed to upload image, proceeding with text prompt only")
+
+            payload = {
+                "prompt": final_prompt,
+                "n": n,
+                "model": model,
+                "size": aspect_ratio 
+            }
+
+            if seed != -1:
+                payload["seed"] = seed
+
+            response = requests.post(
+                "https://ai.comfly.chat/v1/images/generations",
+                headers=self.get_headers(),
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            pbar.update_absolute(50)
+            
+            if response.status_code != 200:
+                error_message = f"API Error: {response.status_code} - {response.text}"
+                print(error_message)
+                if input_image is None:
+                    blank_image = Image.new('RGB', (1024, 1024), color='white')
+                    blank_tensor = pil2tensor(blank_image)
+                    return (blank_tensor, "")
+                return (input_image, "")
+                
+            result = response.json()
+
+            if not result.get("data") or not result["data"]:
+                error_message = "No image data in response"
+                print(error_message)
+                if input_image is None:
+                    blank_image = Image.new('RGB', (1024, 1024), color='white')
+                    blank_tensor = pil2tensor(blank_image)
+                    return (blank_tensor, "")
+                return (input_image, "")
+
+            generated_tensors = []
+            image_urls = []
+            
+            for i, item in enumerate(result["data"]):
+                pbar.update_absolute(50 + (i+1) * 40 // len(result["data"]))
+                
+                if "url" in item:
+                    image_url = item["url"]
+                    image_urls.append(image_url)
+                    
+                    try:
+                        img_response = requests.get(image_url, timeout=self.timeout)
+                        img_response.raise_for_status()
+                        generated_image = Image.open(BytesIO(img_response.content))
+                        generated_tensor = pil2tensor(generated_image)
+                        generated_tensors.append(generated_tensor)
+                    except Exception as e:
+                        print(f"Error downloading image from URL: {str(e)}")
+                        
+                elif "b64_json" in item:
+                    image_data = base64.b64decode(item["b64_json"])
+                    generated_image = Image.open(BytesIO(image_data))
+                    generated_tensor = pil2tensor(generated_image)
+                    generated_tensors.append(generated_tensor)
+            
+            pbar.update_absolute(100)
+            
+            if generated_tensors:
+                combined_tensor = torch.cat(generated_tensors, dim=0)
+                return (combined_tensor, "\n".join(image_urls))
+            else:
+                error_message = "Failed to process any images"
+                print(error_message)
+                if input_image is None:
+                    blank_image = Image.new('RGB', (1024, 1024), color='white')
+                    blank_tensor = pil2tensor(blank_image)
+                    return (blank_tensor, "")
+                return (input_image, "")
+            
+        except Exception as e:
+            error_message = f"Error in image generation: {str(e)}"
+            print(error_message)
+            if input_image is None:
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, "")
+            return (input_image, "")           
         
         
 
@@ -3691,6 +3877,7 @@ NODE_CLASS_MAPPINGS = {
     "Comfly_gpt_image_1_edit": Comfly_gpt_image_1_edit,
     "Comfly_gpt_image_1": Comfly_gpt_image_1,
     "ComflyJimengVideoApi": ComflyJimengVideoApi,
+    "Comfly_Flux_Kontext": Comfly_Flux_Kontext,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -3711,5 +3898,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_gpt_image_1_edit": "Comfly_gpt_image_1_edit",
     "Comfly_gpt_image_1": "Comfly_gpt_image_1", 
     "ComflyJimengVideoApi": "Comfly Jimeng Video API",
+    "Comfly_Flux_Kontext": "Comfly_Flux_Kontext",
 }
 
