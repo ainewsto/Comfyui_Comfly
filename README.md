@@ -27,7 +27,12 @@
 
 # 更新 Update：
 
-20250518：
+20250531：
+
+`Flux节点`: 已经支持对上一次生成的图片再次提示词编辑，增加了match_input_image对输入图片尺寸知道匹配（只是匹配接近比例，而不是原像素长宽。
+
+
+20250530：
 
 `Flux节点`: 新增Comfly_Flux_Kontext节点，支持：flux-kontext-pro和flux-kontext-max模型，按次收费：pro模型大约0.096元，max大约0.192元，比官方便宜很多。
 
