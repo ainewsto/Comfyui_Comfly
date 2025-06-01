@@ -3741,8 +3741,8 @@ class Comfly_Flux_Kontext:
             return None
     
     def generate_image(self, prompt, input_image=None, model="flux-kontext-pro", 
-                      apikey="", aspect_ratio="Default", guidance=3.5, num_of_images=1,
-                      seed=-1, clear_image=True):
+                  apikey="", aspect_ratio="Default", guidance=3.5, num_of_images=1,
+                  seed=-1, clear_image=True):
         if apikey.strip():
             self.api_key = apikey
             config = get_config()
@@ -3766,20 +3766,30 @@ class Comfly_Flux_Kontext:
             final_prompt = prompt
             custom_dimensions = None
 
-            if not clear_image and Comfly_Flux_Kontext._last_image_url:
-                final_prompt = f"{Comfly_Flux_Kontext._last_image_url} {prompt}"
+            if input_image is not None:
+                batch_size = input_image.shape[0]
+                all_image_urls = []
+                
+                for i in range(batch_size):
+                    single_image = input_image[i:i+1]
+                    pbar.update_absolute(10 + (i * 10) // batch_size)
+                    image_url = self.upload_image(single_image)
+                    if image_url:
+                        all_image_urls.append(image_url)
 
-            elif input_image is not None:
-                image_url = self.upload_image(input_image)
-                if image_url:
-                    final_prompt = f"{image_url} {prompt}"
+                if all_image_urls:
+                    image_urls_text = " ".join(all_image_urls)
+                    final_prompt = f"{image_urls_text} {prompt}"
 
-                    if aspect_ratio == "match_input_image":
+                    if aspect_ratio == "match_input_image" and batch_size > 0:
                         pil_image = tensor2pil(input_image)[0]
                         width, height = pil_image.size
                         custom_dimensions = {"width": width, "height": height}
                 else:
-                    print("Failed to upload image, proceeding with text prompt only")
+                    print("Failed to upload any images, proceeding with text prompt only")
+ 
+            elif not clear_image and Comfly_Flux_Kontext._last_image_url:
+                final_prompt = f"{Comfly_Flux_Kontext._last_image_url} {prompt}"
 
             payload = {
                 "prompt": final_prompt,
@@ -3854,7 +3864,7 @@ class Comfly_Flux_Kontext:
             
             if generated_tensors:
                 combined_tensor = torch.cat(generated_tensors, dim=0)
- 
+
                 if image_urls:
                     Comfly_Flux_Kontext._last_image_url = image_urls[0]
                 
