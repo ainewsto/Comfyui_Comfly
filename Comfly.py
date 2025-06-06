@@ -3780,13 +3780,17 @@ class Comfly_Flux_Kontext:
                 if all_image_urls:
                     image_urls_text = " ".join(all_image_urls)
                     final_prompt = f"{image_urls_text} {prompt}"
-
                     if aspect_ratio == "match_input_image" and batch_size > 0:
                         pil_image = tensor2pil(input_image)[0]
                         width, height = pil_image.size
                         custom_dimensions = {"width": width, "height": height}
                 else:
-                    print("Failed to upload any images, proceeding with text prompt only")
+                    print("Failed to upload any images")
+                    if input_image is None:
+                        blank_image = Image.new('RGB', (1024, 1024), color='white')
+                        blank_tensor = pil2tensor(blank_image)
+                        return (blank_tensor, "")
+                    return (input_image, "")
  
             elif not clear_image and Comfly_Flux_Kontext._last_image_url:
                 final_prompt = f"{Comfly_Flux_Kontext._last_image_url} {prompt}"
