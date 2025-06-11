@@ -27,6 +27,11 @@
 
 # 更新 Update：
 
+20250611：
+
+`Flux节点`: Comfly_Flux_Kontext_Edit节点支持设置出图数量（1-4张范围），这个节点不会消耗上传图片费用，直接传入图片即可，
+           跟Comfly_Flux_Kontext一样，就是上传图片不会扣费，图片输入支持base64图片编码格式，可以做为稳定性的备用节点。
+
 20250601：
 
 `Flux节点`: Comfly_Flux_Kontext节点支持设置出图数量（1-4张范围），去掉了match_input_image对输入图片尺寸选项。
