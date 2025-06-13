@@ -27,6 +27,11 @@
 
 # 更新 Update：
 
+20250613：
+
+`Flux节点`: 新增bfl官方节点：Comfly_Flux_Kontext_bfl节点，价格不变
+
+
 20250611：
 
 `Flux节点`: Comfly_Flux_Kontext_Edit节点支持设置出图数量（1-4张范围），这个节点不会消耗上传图片费用，直接传入图片即可，

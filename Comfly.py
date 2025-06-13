@@ -4075,6 +4075,196 @@ class Comfly_Flux_Kontext_Edit:
 
 
 
+class Comfly_Flux_Kontext_bfl:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "model": (["flux-kontext-pro", "flux-kontext-max"], {"default": "flux-kontext-pro"}),
+            },
+            "optional": {
+                "api_key": ("STRING", {"default": ""}),
+                "input_image": ("IMAGE",),
+                "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647}),
+                "aspect_ratio": (["21:9", "16:9", "4:3", "3:2", "1:1", "2:3", "3:4", "9:16", "9:21"], 
+                         {"default": "1:1"}),
+                "output_format": (["png", "jpeg"], {"default": "png"}),
+                "prompt_upsampling": ("BOOLEAN", {"default": False}),
+                "safety_tolerance": ("INT", {"default": 2, "min": 0, "max": 6})
+            }
+        }
+    
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING")
+    RETURN_NAMES = ("image", "image_url", "response")
+    FUNCTION = "generate_image"
+    CATEGORY = "Comfly/Flux"
+
+    def __init__(self):
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 300
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+    
+    def image_to_base64(self, image_tensor):
+        """Convert tensor to base64 string"""
+        if image_tensor is None:
+            return None
+            
+        pil_image = tensor2pil(image_tensor)[0]
+        buffered = BytesIO()
+        pil_image.save(buffered, format="PNG")
+        return base64.b64encode(buffered.getvalue()).decode('utf-8')
+    
+    def generate_image(self, prompt, model="flux-kontext-pro", input_image=None, 
+                      seed=-1, aspect_ratio="1:1", output_format="png", 
+                      prompt_upsampling=False, safety_tolerance=2, api_key=""):
+        if api_key.strip():
+            self.api_key = api_key
+            config = get_config()
+            config['api_key'] = api_key
+            save_config(config)
+            
+        if not self.api_key:
+            error_response = {"status": "failed", "message": "API key not found"}
+            return (None, "", json.dumps(error_response))
+            
+        # Initialize progress bar
+        pbar = comfy.utils.ProgressBar(100)
+        pbar.update_absolute(10)
+        
+        # Determine API endpoint based on model selection
+        api_endpoint = f"https://ai.comfly.chat/bfl/v1/{model}"
+        
+        try:
+            # Prepare payload
+            payload = {
+                "prompt": prompt,
+                "output_format": output_format,
+                "prompt_upsampling": prompt_upsampling,
+                "safety_tolerance": safety_tolerance
+            }
+            
+            # Add optional parameters if provided
+            if input_image is not None:
+                input_image_base64 = self.image_to_base64(input_image)
+                if input_image_base64:
+                    payload["input_image"] = input_image_base64
+            
+            if seed != -1:
+                payload["seed"] = seed
+                
+            if aspect_ratio:
+                payload["aspect_ratio"] = aspect_ratio
+                
+            # Make the API request
+            response = requests.post(
+                api_endpoint,
+                headers=self.get_headers(),
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            pbar.update_absolute(30)
+            
+            if response.status_code != 200:
+                error_message = f"API Error: {response.status_code} - {response.text}"
+                print(error_message)
+                return (None, "", json.dumps({"status": "failed", "message": error_message}))
+                
+            result = response.json()
+            
+            if "id" not in result or "polling_url" not in result:
+                error_message = "Invalid response format from API"
+                print(error_message)
+                return (None, "", json.dumps({"status": "failed", "message": error_message}))
+                
+            task_id = result["id"]
+            polling_url = result["polling_url"]
+            
+            # Use task_id for our own endpoint
+            pbar.update_absolute(40)
+            
+            # Poll for the result
+            max_attempts = 60  # 10 minutes with 10s interval
+            attempts = 0
+            image_url = ""
+            
+            while attempts < max_attempts:
+                time.sleep(10)
+                attempts += 1
+                
+                try:
+                    result_response = requests.get(
+                        f"https://ai.comfly.chat/bfl/v1/get_result?id={task_id}",
+                        headers=self.get_headers(),
+                        timeout=self.timeout
+                    )
+                    
+                    if result_response.status_code != 200:
+                        continue
+                        
+                    result_data = result_response.json()
+                    status = result_data.get("status")
+                    
+                    if status == "Ready":
+                        if "result" in result_data and "sample" in result_data["result"]:
+                            image_url = result_data["result"]["sample"]
+                            break
+                    
+                    # Update progress based on polling attempts
+                    progress = min(80, 40 + (attempts * 40 // max_attempts))
+                    pbar.update_absolute(progress)
+                        
+                except Exception as e:
+                    print(f"Error checking generation status: {str(e)}")
+                    # Continue anyway
+            
+            if not image_url:
+                error_message = "Failed to retrieve generated image URL after multiple attempts"
+                print(error_message)
+                return (None, "", json.dumps({"status": "failed", "message": error_message}))
+                
+            # Download the image
+            pbar.update_absolute(90)
+            
+            try:
+                img_response = requests.get(image_url, timeout=self.timeout)
+                img_response.raise_for_status()
+                
+                generated_image = Image.open(BytesIO(img_response.content))
+                generated_tensor = pil2tensor(generated_image)
+                
+                pbar.update_absolute(100)
+                
+                result_info = {
+                    "status": "success",
+                    "task_id": task_id,
+                    "prompt": prompt,
+                    "model": model,
+                    "seed": seed if seed > 0 else "random",
+                    "aspect_ratio": aspect_ratio
+                }
+                
+                return (generated_tensor, image_url, json.dumps(result_info))
+                
+            except Exception as e:
+                error_message = f"Error downloading generated image: {str(e)}"
+                print(error_message)
+                return (None, image_url, json.dumps({"status": "partial_success", "message": error_message, "image_url": image_url}))
+            
+        except Exception as e:
+            error_message = f"Error in image generation: {str(e)}"
+            print(error_message)
+            import traceback
+            traceback.print_exc()
+            return (None, "", json.dumps({"status": "failed", "message": error_message}))
+
+
 WEB_DIRECTORY = "./web"    
         
 NODE_CLASS_MAPPINGS = {
@@ -4097,6 +4287,7 @@ NODE_CLASS_MAPPINGS = {
     "ComflyJimengVideoApi": ComflyJimengVideoApi,
     "Comfly_Flux_Kontext": Comfly_Flux_Kontext,
     "Comfly_Flux_Kontext_Edit": Comfly_Flux_Kontext_Edit,
+    "Comfly_Flux_Kontext_bfl": Comfly_Flux_Kontext_bfl,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -4119,5 +4310,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ComflyJimengVideoApi": "Comfly Jimeng Video API",
     "Comfly_Flux_Kontext": "Comfly_Flux_Kontext",
     "Comfly_Flux_Kontext_Edit": "Comfly_Flux_Kontext_Edit",
+    "Comfly_Flux_Kontext_bfl": "Comfly_Flux_Kontext_bfl",
 }
 
