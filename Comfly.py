@@ -4098,12 +4098,11 @@ class Comfly_Flux_Kontext_bfl:
     RETURN_TYPES = ("IMAGE", "STRING", "STRING")
     RETURN_NAMES = ("image", "image_url", "response")
     FUNCTION = "generate_image"
-    CATEGORY = "Comfly/Flux"
-
+    CATEGORY = "Comfly-v2/Flux"
+    OUTPUT_NODE = True
     def __init__(self):
         self.api_key = get_config().get('api_key', '')
         self.timeout = 300
-
     def get_headers(self):
         return {
             "Content-Type": "application/json",
@@ -4128,28 +4127,30 @@ class Comfly_Flux_Kontext_bfl:
             config = get_config()
             config['api_key'] = api_key
             save_config(config)
+
+        if input_image is not None:
+            default_tensor = input_image  
+        else:
+            blank_image = Image.new('RGB', (512, 512), color='white')
+            default_tensor = pil2tensor(blank_image)
             
         if not self.api_key:
             error_response = {"status": "failed", "message": "API key not found"}
-            return (None, "", json.dumps(error_response))
+            return (default_tensor, "", json.dumps(error_response))
             
-        # Initialize progress bar
         pbar = comfy.utils.ProgressBar(100)
         pbar.update_absolute(10)
-        
-        # Determine API endpoint based on model selection
+
         api_endpoint = f"https://ai.comfly.chat/bfl/v1/{model}"
         
         try:
-            # Prepare payload
             payload = {
                 "prompt": prompt,
                 "output_format": output_format,
                 "prompt_upsampling": prompt_upsampling,
                 "safety_tolerance": safety_tolerance
             }
-            
-            # Add optional parameters if provided
+
             if input_image is not None:
                 input_image_base64 = self.image_to_base64(input_image)
                 if input_image_base64:
@@ -4160,8 +4161,7 @@ class Comfly_Flux_Kontext_bfl:
                 
             if aspect_ratio:
                 payload["aspect_ratio"] = aspect_ratio
-                
-            # Make the API request
+
             response = requests.post(
                 api_endpoint,
                 headers=self.get_headers(),
@@ -4174,23 +4174,21 @@ class Comfly_Flux_Kontext_bfl:
             if response.status_code != 200:
                 error_message = f"API Error: {response.status_code} - {response.text}"
                 print(error_message)
-                return (None, "", json.dumps({"status": "failed", "message": error_message}))
+                return (default_tensor, "", json.dumps({"status": "failed", "message": error_message}))
                 
             result = response.json()
             
             if "id" not in result or "polling_url" not in result:
                 error_message = "Invalid response format from API"
                 print(error_message)
-                return (None, "", json.dumps({"status": "failed", "message": error_message}))
+                return (default_tensor, "", json.dumps({"status": "failed", "message": error_message}))
                 
             task_id = result["id"]
             polling_url = result["polling_url"]
-            
-            # Use task_id for our own endpoint
+
             pbar.update_absolute(40)
-            
-            # Poll for the result
-            max_attempts = 60  # 10 minutes with 10s interval
+
+            max_attempts = 60  
             attempts = 0
             image_url = ""
             
@@ -4215,21 +4213,18 @@ class Comfly_Flux_Kontext_bfl:
                         if "result" in result_data and "sample" in result_data["result"]:
                             image_url = result_data["result"]["sample"]
                             break
-                    
-                    # Update progress based on polling attempts
+
                     progress = min(80, 40 + (attempts * 40 // max_attempts))
                     pbar.update_absolute(progress)
                         
                 except Exception as e:
                     print(f"Error checking generation status: {str(e)}")
-                    # Continue anyway
             
             if not image_url:
                 error_message = "Failed to retrieve generated image URL after multiple attempts"
                 print(error_message)
-                return (None, "", json.dumps({"status": "failed", "message": error_message}))
-                
-            # Download the image
+                return (default_tensor, "", json.dumps({"status": "failed", "message": error_message}))
+
             pbar.update_absolute(90)
             
             try:
@@ -4255,14 +4250,14 @@ class Comfly_Flux_Kontext_bfl:
             except Exception as e:
                 error_message = f"Error downloading generated image: {str(e)}"
                 print(error_message)
-                return (None, image_url, json.dumps({"status": "partial_success", "message": error_message, "image_url": image_url}))
+                return (default_tensor, image_url, json.dumps({"status": "partial_success", "message": error_message, "image_url": image_url}))
             
         except Exception as e:
             error_message = f"Error in image generation: {str(e)}"
             print(error_message)
             import traceback
             traceback.print_exc()
-            return (None, "", json.dumps({"status": "failed", "message": error_message}))
+            return (default_tensor, "", json.dumps({"status": "failed", "message": error_message}))
 
 
 WEB_DIRECTORY = "./web"    
