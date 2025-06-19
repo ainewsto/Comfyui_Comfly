@@ -4098,11 +4098,13 @@ class Comfly_Flux_Kontext_bfl:
     RETURN_TYPES = ("IMAGE", "STRING", "STRING")
     RETURN_NAMES = ("image", "image_url", "response")
     FUNCTION = "generate_image"
-    CATEGORY = "Comfly-v2/Flux"
+    CATEGORY = "Comfly/Flux"
     OUTPUT_NODE = True
+
     def __init__(self):
         self.api_key = get_config().get('api_key', '')
         self.timeout = 300
+
     def get_headers(self):
         return {
             "Content-Type": "application/json",
