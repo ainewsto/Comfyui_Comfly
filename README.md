@@ -27,6 +27,10 @@
 
 # 更新 Update：
 
+20250627：
+
+`Flux节点`: Comfly_Flux_Kontext，Comfly_Flux_Kontext_Edit两个节点新增flux-kontext-dev模型
+
 20250613：
 
 `Flux节点`: 新增bfl官方节点：Comfly_Flux_Kontext_bfl节点，价格不变

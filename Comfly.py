@@ -3684,7 +3684,7 @@ class Comfly_Flux_Kontext:
             },
             "optional": {
                 "input_image": ("IMAGE",),
-                "model": (["flux-kontext-pro", "flux-kontext-max"], {"default": "flux-kontext-pro"}),
+                "model": (["flux-kontext-dev", "flux-kontext-pro", "flux-kontext-max"], {"default": "flux-kontext-pro"}),
                 "apikey": ("STRING", {"default": ""}),
                 "aspect_ratio": (["Default", "21:9", "16:9", "4:3", "3:2", "1:1", "2:3", "3:4", "9:16", "9:21"], 
                          {"default": "Default"}),
@@ -3901,7 +3901,7 @@ class Comfly_Flux_Kontext_Edit:
             },
             "optional": {
                 "image": ("IMAGE",),
-                "model": (["flux-kontext-pro", "flux-kontext-max"], {"default": "flux-kontext-pro"}),
+                "model": (["flux-kontext-dev", "flux-kontext-pro", "flux-kontext-max"], {"default": "flux-kontext-pro"}),
                 "apikey": ("STRING", {"default": ""}),
                 "aspect_ratio": (["21:9", "16:9", "4:3", "3:2", "1:1", "2:3", "3:4", "9:16", "9:21"], 
                          {"default": "1:1"}),
