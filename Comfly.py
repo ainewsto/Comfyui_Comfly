@@ -4262,6 +4262,201 @@ class Comfly_Flux_Kontext_bfl:
             return (default_tensor, "", json.dumps({"status": "failed", "message": error_message}))
 
 
+
+############################# Googel ###########################
+
+class Comfly_Googel_Veo3:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "model": (["veo3", "veo3-fast", "veo3-pro", "veo3-pro-frames"], {"default": "veo3"}),
+                "enhance_prompt": ("BOOLEAN", {"default": False}),
+            },
+            "optional": {
+                "apikey": ("STRING", {"default": ""}),
+                "image": ("IMAGE",),  
+            }
+        }
+    
+    RETURN_TYPES = ("VIDEO", "STRING", "STRING")
+    RETURN_NAMES = ("video", "video_url", "response")
+    FUNCTION = "generate_video"
+    CATEGORY = "Comfly/Google"
+
+    def __init__(self):
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 300
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+    
+    def image_to_base64(self, image_tensor):
+        """Convert tensor to base64 string"""
+        if image_tensor is None:
+            return None
+            
+        pil_image = tensor2pil(image_tensor)[0]
+        buffered = BytesIO()
+        pil_image.save(buffered, format="PNG")
+        return base64.b64encode(buffered.getvalue()).decode('utf-8')
+    
+    def generate_video(self, prompt, model="veo3", enhance_prompt=False, apikey="", image=None):
+        if apikey.strip():
+            self.api_key = apikey
+            config = get_config()
+            config['api_key'] = apikey
+            save_config(config)
+            
+        if not self.api_key:
+            error_response = {"code": "error", "message": "API key not found in Comflyapi.json"}
+            return ("", "", json.dumps(error_response))
+            
+        try:
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(10)
+
+            is_image_to_video = image is not None
+
+            payload = {
+                "prompt": prompt,
+                "model": model,
+                "enhance_prompt": enhance_prompt
+            }
+
+            if is_image_to_video:
+                image_base64 = self.image_to_base64(image)
+                if image_base64:
+                    payload["images"] = [f"data:image/png;base64,{image_base64}"]
+
+            response = requests.post(
+                "https://ai.comfly.chat/google/v1/models/veo/videos",
+                headers=self.get_headers(),
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            if response.status_code != 200:
+                error_message = f"API Error: {response.status_code} - {response.text}"
+                print(error_message)
+                return ("", "", json.dumps({"code": "error", "message": error_message}))
+                
+            result = response.json()
+            
+            if result.get("code") != "success":
+                error_message = f"API returned error: {result.get('message', 'Unknown error')}"
+                print(error_message)
+                return ("", "", json.dumps({"code": "error", "message": error_message}))
+                
+            task_id = result.get("data")
+            if not task_id:
+                error_message = "No task ID returned from API"
+                print(error_message)
+                return ("", "", json.dumps({"code": "error", "message": error_message}))
+            
+            pbar.update_absolute(30)
+
+            max_attempts = 60  
+            attempts = 0
+            video_url = None
+            
+            while attempts < max_attempts:
+                time.sleep(10)
+                attempts += 1
+                
+                try:
+                    status_response = requests.get(
+                        f"https://ai.comfly.chat/google/v1/tasks/{task_id}",
+                        headers=self.get_headers(),
+                        timeout=self.timeout
+                    )
+                    
+                    if status_response.status_code != 200:
+                        continue
+                        
+                    status_result = status_response.json()
+                    
+                    if status_result.get("code") != "success":
+                        continue
+                    
+                    data = status_result.get("data", {})
+                    status = data.get("status", "")
+                    progress = data.get("progress", "0%")
+                    
+                    try:
+                        if progress.endswith('%'):
+                            progress_num = int(progress.rstrip('%'))
+                            pbar_value = min(90, 30 + progress_num * 60 / 100)
+                            pbar.update_absolute(pbar_value)
+                    except (ValueError, AttributeError):
+                        progress_value = min(80, 30 + (attempts * 50 // max_attempts))
+                        pbar.update_absolute(progress_value)
+                    
+                    if status == "SUCCESS":
+                        if "data" in data and "video_url" in data["data"]:
+                            video_url = data["data"]["video_url"]
+                            break
+                    elif status == "FAILURE":
+                        fail_reason = data.get("fail_reason", "Unknown error")
+                        error_message = f"Video generation failed: {fail_reason}"
+                        print(error_message)
+                        return ("", "", json.dumps({"code": "error", "message": error_message}))
+                        
+                except Exception as e:
+                    print(f"Error checking generation status: {str(e)}")
+            
+            if not video_url:
+                error_message = "Failed to retrieve video URL after multiple attempts"
+                print(error_message)
+                return ("", "", json.dumps({"code": "error", "message": error_message}))
+            
+            pbar.update_absolute(95)
+
+            video_path = self.download_video(video_url)
+            
+            pbar.update_absolute(100)
+            
+            response_data = {
+                "code": "success",
+                "task_id": task_id,
+                "prompt": prompt,
+                "model": model,
+                "enhance_prompt": enhance_prompt
+            }
+            
+            return (video_path, video_url, json.dumps(response_data))
+            
+        except Exception as e:
+            error_message = f"Error generating video: {str(e)}"
+            print(error_message)
+            return ("", "", json.dumps({"code": "error", "message": error_message}))
+    
+    def download_video(self, video_url):
+        """Download video from URL and save to output directory"""
+        try:
+            input_path = folder_paths.get_output_directory()
+            video_filename = f"veo_{str(uuid.uuid4())}.mp4"
+            video_path = os.path.join(input_path, video_filename)
+            
+            response = requests.get(video_url, stream=True)
+            response.raise_for_status()
+            
+            with open(video_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+                    
+            return video_path
+            
+        except Exception as e:
+            print(f"Error downloading video: {str(e)}")
+            raise e
+
+
+
 WEB_DIRECTORY = "./web"    
         
 NODE_CLASS_MAPPINGS = {
@@ -4285,6 +4480,7 @@ NODE_CLASS_MAPPINGS = {
     "Comfly_Flux_Kontext": Comfly_Flux_Kontext,
     "Comfly_Flux_Kontext_Edit": Comfly_Flux_Kontext_Edit,
     "Comfly_Flux_Kontext_bfl": Comfly_Flux_Kontext_bfl,
+    "Comfly_Googel_Veo3": Comfly_Googel_Veo3,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -4308,5 +4504,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_Flux_Kontext": "Comfly_Flux_Kontext",
     "Comfly_Flux_Kontext_Edit": "Comfly_Flux_Kontext_Edit",
     "Comfly_Flux_Kontext_bfl": "Comfly_Flux_Kontext_bfl",
+    "Comfly_Googel_Veo3": "Comfly Google Veo3",
 }
 
