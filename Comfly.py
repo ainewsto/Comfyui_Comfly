@@ -2922,6 +2922,9 @@ class Comfly_gpt_image_1_edit:
                 "size": (["auto", "1024x1024", "1536x1024", "1024x1536"], {"default": "auto"}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                 "clear_chats": ("BOOLEAN", {"default": True}),
+                "background": (["auto", "transparent", "opaque"], {"default": "auto"}),
+                "output_compression": ("INT", {"default": 100, "min": 0, "max": 100}),
+                "output_format": (["png", "jpeg", "webp"], {"default": "png"}),
             }
         }
 
@@ -2951,7 +2954,8 @@ class Comfly_gpt_image_1_edit:
         return formatted_history.strip()
     
     def edit_image(self, image, prompt, model="gpt-image-1", n=1, quality="auto", 
-              seed=0, mask=None, api_key="", size="auto", clear_chats=True):
+              seed=0, mask=None, api_key="", size="auto", clear_chats=True,
+              background="auto", output_compression=100, output_format="png"):
         if api_key.strip():
             self.api_key = api_key
             config = get_config()
@@ -3038,6 +3042,15 @@ class Comfly_gpt_image_1_edit:
                 
                 if size != "auto":
                     data['size'] = size
+                    
+                if background != "auto":
+                    data['background'] = background
+                    
+                if output_compression != 100:
+                    data['output_compression'] = str(output_compression)
+                    
+                if output_format != "png":
+                    data['output_format'] = output_format
 
                 image_files = []
                 for file_tuple in files['image[]']:
@@ -3063,6 +3076,15 @@ class Comfly_gpt_image_1_edit:
                 
                 if size != "auto":
                     data['size'] = size
+                    
+                if background != "auto":
+                    data['background'] = background
+                    
+                if output_compression != 100:
+                    data['output_compression'] = str(output_compression)
+                    
+                if output_format != "png":
+                    data['output_format'] = output_format
 
                 request_files = []
 
@@ -3127,6 +3149,15 @@ class Comfly_gpt_image_1_edit:
                     
                 if size != "auto":
                     response_info += f"Size: {size}\n"
+                    
+                if background != "auto":
+                    response_info += f"Background: {background}\n"
+                    
+                if output_compression != 100:
+                    response_info += f"Output Compression: {output_compression}%\n"
+                    
+                if output_format != "png":
+                    response_info += f"Output Format: {output_format}\n"
 
                 Comfly_gpt_image_1_edit._conversation_history.append({
                     "user": f"Edit image with prompt: {prompt}",
