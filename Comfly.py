@@ -121,16 +121,38 @@ class ComflyBaseNode:
             async with aiohttp.ClientSession() as session:
                 async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/imagine", headers=headers, json=payload, timeout=self.timeout) as response:
                     if response.status == 200:
-                        data = await response.json()
-                        return data["result"]
+                        try:
+                            data = await response.json()
+                            print(f"API response: {data}")
+                            return data["result"]
+                        except aiohttp.client_exceptions.ContentTypeError:
+                            text_response = await response.text()
+                            print(f"API returned non-JSON response: {text_response}")
+
+                            try:
+                                data = json.loads(text_response)
+                                return data["result"]
+                            except (json.JSONDecodeError, KeyError) as e:
+                                if text_response and len(text_response) < 100:  
+                                    return text_response.strip()
+                                raise Exception(f"Server returned invalid response: {text_response}")
                     else:
                         error_message = f"Error submitting Midjourney task: {response.status}"
                         print(error_message)
+                        try:
+                            error_details = await response.text()
+                            print(f"Error details: {error_details}")
+                        except:
+                            pass
                         raise Exception(error_message)
         except asyncio.TimeoutError:
             error_message = f"Timeout error: Request to submit imagine task timed out after {self.timeout} seconds"
             print(error_message)
             raise Exception(error_message)
+        except Exception as e:
+            print(f"Exception in midjourney_submit_imagine_task: {str(e)}")
+            raise e
+
     async def midjourney_fetch_task_result(self, taskId):
         headers = {
             "Content-Type": "application/json",
@@ -656,7 +678,6 @@ class Comfly_Mju(ComflyBaseNode):
                             print(f"API returned non-JSON response: {text_response}")
 
                             try:
-                                import json
                                 data = json.loads(text_response)
                                 return data["result"]
                             except (json.JSONDecodeError, KeyError) as e:
@@ -679,6 +700,7 @@ class Comfly_Mju(ComflyBaseNode):
         except Exception as e:
             print(f"Exception in midjourney_submit_imagine_task: {str(e)}")
             raise e
+
 
     async def midjourney_fetch_task_result(self, taskId):
         headers = {
@@ -4572,4 +4594,3 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_Flux_Kontext_bfl": "Comfly_Flux_Kontext_bfl",
     "Comfly_Googel_Veo3": "Comfly Google Veo3",
 }
-
