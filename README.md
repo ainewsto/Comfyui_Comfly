@@ -27,6 +27,11 @@
 
 # 更新 Update：
 
+20250714：
+
+`Googel veo3节点`: veo3谷歌视频，新增veo3-fast-frames模型，图生视频
+
+
 20250630：
 
 `Googel veo3节点`: 

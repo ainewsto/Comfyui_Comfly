@@ -4622,7 +4622,7 @@ class Comfly_Googel_Veo3:
         return {
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
-                "model": (["veo3", "veo3-fast", "veo3-pro", "veo3-pro-frames"], {"default": "veo3"}),
+                "model": (["veo3", "veo3-fast", "veo3-pro", "veo3-fast-frames", "veo3-pro-frames"], {"default": "veo3"}),
                 "enhance_prompt": ("BOOLEAN", {"default": False}),
             },
             "optional": {
