@@ -27,6 +27,10 @@
 
 # 更新 Update：
 
+
+20250716：删除了Comfly_kling_videoPreview节点，视频节点的video输出接口可以直接连接comfyui本体的save video节点。
+
+
 20250714：
 
 `Googel veo3节点`: veo3谷歌视频，新增veo3-fast-frames模型，图生视频
