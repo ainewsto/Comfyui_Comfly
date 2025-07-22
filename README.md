@@ -27,6 +27,10 @@
 
 # 更新 Update：
 
+20250714：
+
+`mj video节点`: 新增mj视频节点：Comfly_mj_video，一次生成4个视频，按次收费。 
+
 
 20250716：删除了Comfly_kling_videoPreview节点，视频节点的video输出接口可以直接连接comfyui本体的save video节点。
 
