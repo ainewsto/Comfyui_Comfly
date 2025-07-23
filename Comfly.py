@@ -5118,6 +5118,7 @@ NODE_CLASS_MAPPINGS = {
     "Comfly_Flux_Kontext_Edit": Comfly_Flux_Kontext_Edit,
     "Comfly_Flux_Kontext_bfl": Comfly_Flux_Kontext_bfl,
     "Comfly_Googel_Veo3": Comfly_Googel_Veo3,
+    "Comfly_mj_video": Comfly_mj_video,   
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -5141,4 +5142,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_Flux_Kontext_Edit": "Comfly_Flux_Kontext_Edit",
     "Comfly_Flux_Kontext_bfl": "Comfly_Flux_Kontext_bfl",
     "Comfly_Googel_Veo3": "Comfly Google Veo3",
+    "Comfly_mj_video": "Comfly mj video",
 }
