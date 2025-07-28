@@ -4129,7 +4129,7 @@ class Comfly_gpt_image_1:
 
 
 class ComflyChatGPTApi:
-
+ 
     _last_generated_image_urls = ""
     
     @classmethod
@@ -4137,7 +4137,7 @@ class ComflyChatGPTApi:
         return {
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
-                "model": ("STRING", {"default": "gpt-image-1", "multiline": False}),
+                "model": ("STRING", {"default": "gpt-4o-image", "multiline": False}),
             },
             "optional": {
                 "api_key": ("STRING", {"default": ""}),
@@ -4166,12 +4166,13 @@ class ComflyChatGPTApi:
         self.image_download_timeout = 600
         self.api_endpoint = "https://ai.comfly.chat/v1/chat/completions"
         self.conversation_history = []
-
+ 
     def get_headers(self):
         return {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}"
         }
+    
     def image_to_base64(self, image):
         """Convert PIL image to base64 string"""
         buffered = BytesIO()
@@ -4257,15 +4258,26 @@ class ComflyChatGPTApi:
         return formatted_history.strip()
 
     def process(self, prompt, model, clear_chats=True, files=None, image_url="", images=None, temperature=0.7, 
-               max_tokens=4096, top_p=1.0, frequency_penalty=0.0, presence_penalty=0.0, seed=-1,
-               image_download_timeout=100, api_key=""):
+           max_tokens=4096, top_p=1.0, frequency_penalty=0.0, presence_penalty=0.0, seed=-1,
+           image_download_timeout=100, api_key=""):
+
+        if model.lower() == "gpt-image-1":
+            error_message = "不支持此模型，请使用 gpt-4o-image，gpt-4o-image-vip，sora_image，sora_image-vip 这4个模型。"
+            print(error_message)
+
+            if images is not None:
+                return (images, error_message, "", self.format_conversation_history())
+            else:
+                blank_img = Image.new('RGB', (512, 512), color='white')
+                return (pil2tensor(blank_img), error_message, "", self.format_conversation_history())
+            
         if api_key.strip():
             self.api_key = api_key
             config = get_config()
             config['api_key'] = api_key
             save_config(config)
+
         try:
-          
             self.image_download_timeout = image_download_timeout
           
             if clear_chats:
