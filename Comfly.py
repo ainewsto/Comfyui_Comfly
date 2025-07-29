@@ -2235,6 +2235,287 @@ class Comfly_kling_image2video:
         return json.dumps(camera_mappings.get(camera, camera_mappings["none"]))
 
 
+class Comfly_kling_multi_image2video:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "model_name": (["kling-v1-6"], {"default": "kling-v1-6"}),
+                "mode": (["std", "pro"], {"default": "std"}),
+                "duration": (["5", "10"], {"default": "5"}),
+                "aspect_ratio": (["16:9", "9:16", "1:1"], {"default": "16:9"}),
+                "negative_prompt": ("STRING", {"multiline": True, "default": ""}),
+            },
+            "optional": {
+                "image1": ("IMAGE",),
+                "image2": ("IMAGE",),
+                "image3": ("IMAGE",),
+                "image4": ("IMAGE",),
+                "api_key": ("STRING", {"default": ""}),
+                "max_retries": ("INT", {"default": 10, "min": 1, "max": 30}),
+                "initial_timeout": ("INT", {"default": 600, "min": 30, "max": 900}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})
+            }
+        }
+
+    RETURN_TYPES = (IO.VIDEO, "STRING", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("video", "video_url", "task_id", "video_id", "response")
+    FUNCTION = "generate_video"
+    CATEGORY = "Comfly/Comfly_kling"
+
+    def __init__(self):
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 300
+        self.session = requests.Session()
+        retry_strategy = requests.packages.urllib3.util.retry.Retry(
+            total=5,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["GET", "POST"]
+        )
+        adapter = requests.adapters.HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+    
+    def image_to_base64(self, image_tensor):
+        """Convert tensor to base64 string without data URI prefix"""
+        if image_tensor is None:
+            return None
+            
+        try:
+            pil_image = tensor2pil(image_tensor)[0]
+            buffered = BytesIO()
+            pil_image.save(buffered, format="PNG")
+            return base64.b64encode(buffered.getvalue()).decode('utf-8')
+        except Exception as e:
+            print(f"Error converting image to base64: {str(e)}")
+            return None
+    
+    def make_request_with_retry(self, method, url, **kwargs):
+        max_retries = kwargs.pop('max_retries', 10)
+        initial_timeout = kwargs.pop('initial_timeout', self.timeout)
+        
+        for attempt in range(1, max_retries + 1):
+            current_timeout = min(initial_timeout * (2 ** (attempt - 1)), 900)  
+            
+            try:
+                kwargs['timeout'] = current_timeout
+                
+                if method.lower() == 'get':
+                    response = self.session.get(url, **kwargs)
+                else:
+                    response = self.session.post(url, **kwargs)
+                
+                response.raise_for_status()
+                return response
+            
+            except requests.exceptions.Timeout as e:
+                if attempt == max_retries:
+                    raise
+                wait_time = min(2 ** (attempt - 1), 60)  
+                time.sleep(wait_time)
+            
+            except requests.exceptions.ConnectionError as e:
+                if attempt == max_retries:
+                    raise
+                wait_time = min(2 ** (attempt - 1), 60)
+                time.sleep(wait_time)
+            
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code in (400, 401, 403):
+                    print(f"Client error: {str(e)}")
+                    raise
+                if attempt == max_retries:
+                    raise
+                wait_time = min(2 ** (attempt - 1), 60)
+                time.sleep(wait_time)
+            
+            except Exception as e:
+                if attempt == max_retries:
+                    raise
+                wait_time = min(2 ** (attempt - 1), 60)
+                time.sleep(wait_time)
+    
+    def poll_task_status(self, task_id, max_attempts=100, initial_interval=2, max_interval=60, headers=None, pbar=None):
+        attempt = 0
+        interval = initial_interval
+        last_status = None
+        
+        while attempt < max_attempts:
+            attempt += 1
+            
+            try:
+                status_response = self.make_request_with_retry(
+                    'get',
+                    f"https://ai.comfly.chat/kling/v1/videos/multi-image2video/{task_id}",
+                    headers=headers
+                )
+                
+                status_result = status_response.json()
+                
+                if status_result["code"] != 0:
+                    print(f"API returned error code: {status_result['code']} - {status_result['message']}")
+                    if status_result["code"] in (400, 401, 403): 
+                        return {"task_status": "failed", "task_status_msg": status_result["message"]}
+                    time.sleep(interval)
+                    interval = min(interval * 1.5, max_interval)
+                    continue
+                
+                last_status = status_result["data"]
+
+                if pbar:
+                    progress = 0
+                    if last_status["task_status"] == "processing":
+                        progress = 50
+                    elif last_status["task_status"] == "succeed":
+                        progress = 100
+                    pbar.update_absolute(progress)
+
+                if last_status["task_status"] == "succeed":
+                    return last_status
+                elif last_status["task_status"] == "failed":
+                    return last_status
+
+                if last_status["task_status"] == "processing":
+                    interval = min(interval * 1.2, max_interval) 
+                else:
+                    interval = max(interval * 0.8, initial_interval)  
+                    
+                time.sleep(interval)
+                
+            except Exception as e:
+                time.sleep(interval)
+                interval = min(interval * 2, max_interval)
+
+        if last_status:
+            return last_status
+        else:
+            return {"task_status": "failed", "task_status_msg": "Maximum polling attempts reached without getting a valid status"}
+    
+    def generate_video(self, prompt, model_name, mode, duration, aspect_ratio, negative_prompt="", 
+                  image1=None, image2=None, image3=None, image4=None, api_key="", 
+                  max_retries=10, initial_timeout=300, seed=0):
+        if api_key.strip():
+            self.api_key = api_key
+            config = get_config()
+            config['api_key'] = api_key
+            save_config(config)
+            
+        if not self.api_key:
+            error_response = {"task_status": "failed", "task_status_msg": "API key not found in Comflyapi.json"}
+            return ("", "", "", "", json.dumps(error_response))
+            
+        pbar = comfy.utils.ProgressBar(100)
+        pbar.update_absolute(10)
+        
+        try:
+            image_list = []
+            for idx, img in enumerate([image1, image2, image3, image4], 1):
+                if img is not None:
+                    base64_str = self.image_to_base64(img)
+                    if base64_str:
+                        image_list.append({"image": base64_str})
+                    
+            if not image_list:
+                error_response = {"task_status": "failed", "task_status_msg": "No valid images provided"}
+                return ("", "", "", "", json.dumps(error_response))
+
+            payload = {
+                "model_name": model_name,
+                "image_list": image_list,
+                "prompt": prompt,
+                "negative_prompt": negative_prompt,
+                "mode": mode,
+                "duration": duration,
+                "aspect_ratio": aspect_ratio
+            }
+            
+            if seed > 0:
+                payload["seed"] = seed
+
+            headers = self.get_headers()
+            pbar.update_absolute(30)
+            
+            print("Submitting multi-image video generation request...")
+            response = self.make_request_with_retry(
+                'post',
+                "https://ai.comfly.chat/kling/v1/videos/multi-image2video",
+                headers=headers,
+                json=payload,
+                max_retries=max_retries,
+                initial_timeout=initial_timeout
+            )
+            
+            result = response.json()
+            
+            if result["code"] != 0:
+                error_message = f"API Error: {result['message']}"
+                print(error_message)
+                error_response = {"task_status": "failed", "task_status_msg": error_message}
+                return ("", "", "", "", json.dumps(error_response))
+                
+            task_id = result["data"]["task_id"]
+            pbar.update_absolute(40)
+            print(f"Multi-image video generation task submitted. Task ID: {task_id}")
+
+            print("Waiting for video generation to complete...")
+            last_status = self.poll_task_status(
+                task_id, 
+                max_attempts=100,
+                initial_interval=2, 
+                max_interval=60,
+                headers=headers,
+                pbar=pbar
+            )
+            
+            if last_status["task_status"] == "succeed":
+                pbar.update_absolute(100)
+                video_url = last_status["task_result"]["videos"][0]["url"]
+                video_id = last_status["task_result"]["videos"][0]["id"]
+                
+                response_data = {
+                    "task_status": "succeed",
+                    "task_status_msg": "Video generated successfully",
+                    "progress": 100,
+                    "video_url": video_url
+                }
+                
+                video_adapter = ComflyVideoAdapter(video_url)
+                return (video_adapter, video_url, task_id, video_id, json.dumps(response_data))
+            
+            elif last_status["task_status"] == "failed":
+                error_msg = last_status.get("task_status_msg", "Unknown error")
+                error_response = {
+                    "task_status": "failed", 
+                    "task_status_msg": error_msg,
+                }
+                print(f"Task failed: {error_msg}")
+                return ("", "", task_id, "", json.dumps(error_response))
+            
+            else:
+                error_msg = f"Unexpected task status: {last_status.get('task_status', 'unknown')}"
+                error_response = {
+                    "task_status": "failed", 
+                    "task_status_msg": error_msg,
+                }
+                print(f"Task error: {error_msg}")
+                return ("", "", task_id, "", json.dumps(error_response))
+        
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            error_response = {"task_status": "failed", "task_status_msg": f"Error generating video: {str(e)}"}
+            print(f"Error generating video: {str(e)}")
+            return ("", "", "", "", json.dumps(error_response))
+
+
 class Comfly_video_extend:
     @classmethod
     def INPUT_TYPES(cls):
@@ -3699,6 +3980,8 @@ class Comfly_gpt_image_1_edit:
                 "background": (["auto", "transparent", "opaque"], {"default": "auto"}),
                 "output_compression": ("INT", {"default": 100, "min": 0, "max": 100}),
                 "output_format": (["png", "jpeg", "webp"], {"default": "png"}),
+                "max_retries": ("INT", {"default": 5, "min": 1, "max": 10}),
+                "initial_timeout": ("INT", {"default": 900, "min": 60, "max": 1200}),
             }
         }
 
@@ -3709,7 +3992,17 @@ class Comfly_gpt_image_1_edit:
 
     def __init__(self):
         self.api_key = get_config().get('api_key', '')
-        self.timeout = 300
+        self.timeout = 900
+        self.session = requests.Session()
+        retry_strategy = requests.packages.urllib3.util.retry.Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["GET", "POST"]
+        )
+        adapter = requests.adapters.HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
 
     def get_headers(self):
         return {
@@ -3727,9 +4020,62 @@ class Comfly_gpt_image_1_edit:
             formatted_history += "---\n\n"
         return formatted_history.strip()
     
+    def make_request_with_retry(self, url, data=None, files=None, max_retries=5, initial_timeout=300):
+        """Make a request with automatic retries and exponential backoff"""
+        for attempt in range(1, max_retries + 1):
+            current_timeout = min(initial_timeout * (1.5 ** (attempt - 1)), 1200)  
+            
+            try:
+                if files:
+                    response = self.session.post(
+                        url,
+                        headers=self.get_headers(),
+                        data=data,
+                        files=files,
+                        timeout=current_timeout
+                    )
+                else:
+                    response = self.session.post(
+                        url,
+                        headers=self.get_headers(),
+                        json=data,
+                        timeout=current_timeout
+                    )
+                
+                response.raise_for_status()
+                return response
+            
+            except requests.exceptions.Timeout as e:
+                if attempt == max_retries:
+                    raise TimeoutError(f"Request timed out after {max_retries} attempts. Last timeout: {current_timeout}s")
+                wait_time = min(2 ** (attempt - 1), 60)  
+                time.sleep(wait_time)
+            
+            except requests.exceptions.ConnectionError as e:
+                if attempt == max_retries:
+                    raise ConnectionError(f"Connection error after {max_retries} attempts: {str(e)}")
+                wait_time = min(2 ** (attempt - 1), 60)
+                time.sleep(wait_time)
+            
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code in (400, 401, 403):
+                    print(f"Client error: {str(e)}")
+                    raise
+                if attempt == max_retries:
+                    raise
+                wait_time = min(2 ** (attempt - 1), 60)
+                time.sleep(wait_time)
+            
+            except Exception as e:
+                if attempt == max_retries:
+                    raise
+                wait_time = min(2 ** (attempt - 1), 60)
+                time.sleep(wait_time)
+    
     def edit_image(self, image, prompt, model="gpt-image-1", n=1, quality="auto", 
               seed=0, mask=None, api_key="", size="auto", clear_chats=True,
-              background="auto", output_compression=100, output_format="png"):
+              background="auto", output_compression=100, output_format="png",
+              max_retries=5, initial_timeout=300):
         if api_key.strip():
             self.api_key = api_key
             config = get_config()
@@ -3748,7 +4094,6 @@ class Comfly_gpt_image_1_edit:
                     image = torch.cat([last_image_first, original_image[1:]], dim=0)
                     use_saved_image = True
             else:
-
                 image = Comfly_gpt_image_1_edit._last_edited_image
                 use_saved_image = True
 
@@ -3805,83 +4150,68 @@ class Comfly_gpt_image_1_edit:
                 mask_byte_arr.seek(0)
                 files['mask'] = ('mask.png', mask_byte_arr, 'image/png')
 
-            if 'image[]' in files:
-
-                data = {
-                    'prompt': prompt,
-                    'model': model,
-                    'n': str(n),
-                    'quality': quality
-                }
+            data = {
+                'prompt': prompt,
+                'model': model,
+                'n': str(n),
+                'quality': quality
+            }
+            
+            if size != "auto":
+                data['size'] = size
                 
-                if size != "auto":
-                    data['size'] = size
-                    
-                if background != "auto":
-                    data['background'] = background
-                    
-                if output_compression != 100:
-                    data['output_compression'] = str(output_compression)
-                    
-                if output_format != "png":
-                    data['output_format'] = output_format
-
-                image_files = []
-                for file_tuple in files['image[]']:
-                    image_files.append(('image', file_tuple))
-
-                if 'mask' in files:
-                    image_files.append(('mask', files['mask']))
-
-                response = requests.post(
-                    "https://ai.comfly.chat/v1/images/edits",
-                    headers=self.get_headers(),
-                    data=data,
-                    files=image_files,
-                    timeout=self.timeout
-                )
-            else:
-                data = {
-                    'prompt': prompt,
-                    'model': model,
-                    'n': str(n),
-                    'quality': quality
-                }
+            if background != "auto":
+                data['background'] = background
                 
-                if size != "auto":
-                    data['size'] = size
-                    
-                if background != "auto":
-                    data['background'] = background
-                    
-                if output_compression != 100:
-                    data['output_compression'] = str(output_compression)
-                    
-                if output_format != "png":
-                    data['output_format'] = output_format
+            if output_compression != 100:
+                data['output_compression'] = str(output_compression)
+                
+            if output_format != "png":
+                data['output_format'] = output_format
 
-                request_files = []
+            pbar.update_absolute(30)
 
-                if 'image' in files:
-                    request_files.append(('image', files['image']))
+            try:
+                if 'image[]' in files:
+                    image_files = []
+                    for file_tuple in files['image[]']:
+                        image_files.append(('image', file_tuple))
 
-                if 'mask' in files:
-                    request_files.append(('mask', files['mask']))
+                    if 'mask' in files:
+                        image_files.append(('mask', files['mask']))
 
-                response = requests.post(
-                    "https://ai.comfly.chat/v1/images/edits",
-                    headers=self.get_headers(),
-                    data=data,
-                    files=request_files,
-                    timeout=self.timeout
-                )
+                    response = self.make_request_with_retry(
+                        "https://ai.comfly.chat/v1/images/edits",
+                        data=data,
+                        files=image_files,
+                        max_retries=max_retries,
+                        initial_timeout=initial_timeout
+                    )
+                else:
+                    request_files = []
+                    if 'image' in files:
+                        request_files.append(('image', files['image']))
+                    if 'mask' in files:
+                        request_files.append(('mask', files['mask']))
 
-            pbar.update_absolute(50)
+                    response = self.make_request_with_retry(
+                        "https://ai.comfly.chat/v1/images/edits",
+                        data=data,
+                        files=request_files,
+                        max_retries=max_retries,
+                        initial_timeout=initial_timeout
+                    )
 
-            if response.status_code != 200:
-                error_message = f"API Error: {response.status_code} - {response.text}"
+            except TimeoutError as e:
+                error_message = f"API timeout error: {str(e)}"
                 print(error_message)
                 return (original_image, error_message, self.format_conversation_history())
+            except Exception as e:
+                error_message = f"API request error: {str(e)}"
+                print(error_message)
+                return (original_image, error_message, self.format_conversation_history())
+
+            pbar.update_absolute(50)
             result = response.json()
             
             if "data" not in result or not result["data"]:
@@ -3901,13 +4231,31 @@ class Comfly_gpt_image_1_edit:
                 elif "url" in item:
                     image_urls.append(item["url"])
                     try:
-                        img_response = requests.get(item["url"])
-                        if img_response.status_code == 200:
-                            edited_image = Image.open(BytesIO(img_response.content))
-                            edited_tensor = pil2tensor(edited_image)
-                            edited_images.append(edited_tensor)
+                        # Also use retry logic for downloading images
+                        for download_attempt in range(1, max_retries + 1):
+                            try:
+                                img_response = requests.get(
+                                    item["url"], 
+                                    timeout=min(initial_timeout * (1.5 ** (download_attempt - 1)), 900)
+                                )
+                                img_response.raise_for_status()
+                                
+                                edited_image = Image.open(BytesIO(img_response.content))
+                                edited_tensor = pil2tensor(edited_image)
+                                edited_images.append(edited_tensor)
+                                break
+                            except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as e:
+                                if download_attempt == max_retries:
+                                    print(f"Failed to download image after {max_retries} attempts: {str(e)}")
+                                    continue
+                                wait_time = min(2 ** (download_attempt - 1), 60)
+                                print(f"Image download error (attempt {download_attempt}/{max_retries}). Retrying in {wait_time} seconds...")
+                                time.sleep(wait_time)
+                            except Exception as e:
+                                print(f"Error downloading image from URL: {str(e)}")
+                                break
                     except Exception as e:
-                        print(f"Error downloading image from URL: {str(e)}")
+                        print(f"Error processing image URL: {str(e)}")
 
             pbar.update_absolute(90)
 
@@ -3953,8 +4301,7 @@ class Comfly_gpt_image_1_edit:
             print(traceback.format_exc())  
             print(error_message)
             return (original_image, error_message, self.format_conversation_history())
-
-        
+    
 
 class Comfly_gpt_image_1:
     @classmethod

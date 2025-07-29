@@ -27,6 +27,12 @@
 
 # 更新 Update：
 
+20250729：
+
+`kling 可灵节点`: 新增可灵多图参考视频节点：Comfly_kling_multi_image2video，最多支持4个参考图，只支持1.6模型。
+新增2.1模型选择。 
+
+
 20250722：
 
 `mj video延长节点`: 新增mj视频延长节点：Comfly_mj_video_extend，一次生成4个视频，按次收费。
