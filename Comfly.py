@@ -1807,7 +1807,7 @@ class Comfly_kling_text2video:
         return {
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
-                "model_name": (["kling-v2-master", "kling-v1-6", "kling-v1-5", "kling-v1"], {"default": "kling-v1-6"}),
+                "model_name": (["kling-v2-1-master", "kling-v2-master", "kling-v1-6", "kling-v1-5", "kling-v1"], {"default": "kling-v1-6"}),
                 "imagination": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.05}),
                 "aspect_ratio": (["1:1", "16:9", "9:16"], {"default": "1:1"}),
                 "mode": (["std", "pro"], {"default": "std"}),
@@ -2003,7 +2003,7 @@ class Comfly_kling_image2video:
             "required": {
                 "image": ("IMAGE",),
                 "prompt": ("STRING", {"multiline": True}),
-                "model_name": (["kling-v2-master", "kling-v1-6", "kling-v1-5", "kling-v1"], {"default": "kling-v1-6"}),
+                "model_name": (["kling-v2-1", "kling-v2-1-master", "kling-v2-master", "kling-v1-6", "kling-v1-5", "kling-v1"], {"default": "kling-v1-6"}),
                 "imagination": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.05}),
                 "aspect_ratio": (["1:1", "16:9", "9:16"], {"default": "1:1"}),
                 "mode": (["std", "pro"], {"default": "std"}),
