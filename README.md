@@ -27,6 +27,12 @@
 
 # 更新 Update：
 
+
+20250731：
+
+`mj 换脸节点`: 新增mj换脸节点：Comfly_Mj_swap_face，修复mju，mjv节点bug。
+
+
 20250729：
 
 `kling 可灵节点`: 新增可灵多图参考视频节点：Comfly_kling_multi_image2video，最多支持4个参考图，只支持1.6模型。

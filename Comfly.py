@@ -664,8 +664,37 @@ class Comfly_Mju(ComflyBaseNode):
                 print(error_message)
                 raise self.MidjourneyError(error_message)
 
-            message_hash = task_result["properties"]["messageHash"]
-            custom_id = self.generate_custom_id(action, index, message_hash)
+            properties = {}
+            if "properties" in task_result:
+                if isinstance(task_result["properties"], str):
+                    try:
+                        properties = json.loads(task_result["properties"])
+                    except json.JSONDecodeError as e:
+                        error_message = f"Failed to parse properties JSON: {e}"
+                        print(error_message)
+                        raise self.MidjourneyError(error_message)
+                else:
+                    properties = task_result["properties"]
+
+            message_id = properties.get("messageId")
+            if not message_id:
+                if "buttons" in task_result and task_result["buttons"]:
+                    try:
+                        buttons = json.loads(task_result["buttons"])
+                        if buttons and len(buttons) > 0:
+                            custom_id = buttons[0].get("customId", "")
+                            parts = custom_id.split("::")
+                            if len(parts) >= 5:
+                                message_id = parts[4]
+                    except Exception as e:
+                        print(f"Failed to extract messageId from buttons: {e}")
+
+            if not message_id:
+                error_message = "Could not find messageId in task result"
+                print(error_message)
+                raise self.MidjourneyError(error_message)
+
+            custom_id = self.generate_custom_id(action, index, message_id)
 
             response = await self.midjourney_submit_action(action, taskId, index, custom_id)
 
@@ -702,24 +731,22 @@ class Comfly_Mju(ComflyBaseNode):
             raise e
         except Exception as e:
             print(f"An error occurred while processing input: {str(e)}")
-            raise e
+            raise e       
 
-        
-
-    def generate_custom_id(self, action, index, message_hash):
+    def generate_custom_id(self, action, index, message_id):
         if action == "zoom":
-            return f"MJ::CustomZoom::{message_hash}"
+            return f"MJ::CustomZoom::{message_id}"
         elif action in ["upsample_v6_2x_subtle", "upsample_v6_2x_creative", "upsample_v5_2x", "upsample_v5_4x",
-                   "pan_left", "pan_right", "pan_up", "pan_down", "reroll"]:
-            return f"MJ::JOB::{action}::{index}::{message_hash}::SOLO"
+                "pan_left", "pan_right", "pan_up", "pan_down", "reroll"]:
+            return f"MJ::JOB::{action}::{index}::{message_id}::SOLO"
         elif action.startswith("Outpaint"):
-            return f"MJ::{action}::{index}::{message_hash}::SOLO"
+            return f"MJ::{action}::{index}::{message_id}::SOLO"
         elif action == "Inpaint":
-            return f"MJ::{action}::1::{index}::{message_hash}::SOLO"
+            return f"MJ::{action}::1::{index}::{message_id}::SOLO"
         elif action == "CustomZoom":
-            return f"MJ::CustomZoom::{index}::{message_hash}"
+            return f"MJ::CustomZoom::{index}::{message_id}"
         else:
-            return f"MJ::JOB::{action}::{index}::{message_hash}"
+            return f"MJ::JOB::{action}::{index}::{message_id}"
 
     def generateUUID(self):
         return str(uuid.uuid4()) 
@@ -1006,15 +1033,13 @@ class Comfly_Mjv(ComflyBaseNode):
     FUNCTION = "run"
     CATEGORY = "Comfly/Midjourney"
 
-    async def submit(self, action, taskId, index, extraParams=None):
+    async def submit_action(self, customId, taskId):
         headers = self.get_headers()
         payload = {
-            "taskId": taskId,
-            "action": action  
+            "customId": customId,
+            "taskId": taskId
         }
-        if extraParams:
-            payload.update(extraParams)
-
+        
         async with aiohttp.ClientSession() as session:
             async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/action", headers=headers, json=payload) as response: 
                 if response.status == 200:
@@ -1041,8 +1066,28 @@ class Comfly_Mjv(ComflyBaseNode):
                     except:
                         pass
                     raise Exception(error_message)
+    
+    async def submit_modal(self, prompt, taskId, maskBase64=None):
+        headers = self.get_headers()
+        payload = {
+            "prompt": prompt,
+            "taskId": taskId
+        }
+        
+        if maskBase64:
+            payload["maskBase64"] = maskBase64
 
-    def run(self, taskId, upsample_v6_2x_subtle=False, upsample_v6_2x_creative=False, costume_zoom=False, zoom="", pan_left=False, pan_right=False, pan_up=False, pan_down=False, api_key=""):
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/modal", headers=headers, json=payload) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data
+                else:
+                    error_message = f"Error submitting Midjourney modal: {response.status}"
+                    print(error_message)
+                    raise Exception(error_message)
+    
+    def run(self, taskId, upsample_v6_2x_subtle=False, upsample_v6_2x_creative=False, costume_zoom=False, zoom=1.0, pan_left=False, pan_right=False, pan_up=False, pan_down=False, api_key=""):
         if api_key.strip():
             self.api_key = api_key
             config = get_config()
@@ -1058,60 +1103,97 @@ class Comfly_Mjv(ComflyBaseNode):
         
         return image_url
 
-    async def process_input(self, taskId, upsample_v6_2x_subtle=False, upsample_v6_2x_creative=False, costume_zoom=False, zoom="", pan_left=False, pan_right=False, pan_up=False, pan_down=False):
-        image_url = ""
-
+    async def process_input(self, taskId, upsample_v6_2x_subtle=False, upsample_v6_2x_creative=False, costume_zoom=False, zoom=1.0, pan_left=False, pan_right=False, pan_up=False, pan_down=False):
         if taskId:
             try:
                 task_result = await self.midjourney_fetch_task_result(taskId)
-
+    
                 if task_result.get("status") == "FAILURE":
                     fail_reason = task_result.get("fail_reason", "Unknown failure reason")
                     error_message = f"Original task failed: {fail_reason}"
                     print(error_message)
                     raise Exception(error_message)
+
+                messageId = None
+                properties = {}
+                if "properties" in task_result:
+                    if isinstance(task_result["properties"], str):
+                        try:
+                            properties = json.loads(task_result["properties"])
+                        except json.JSONDecodeError as e:
+                            error_message = f"Failed to parse properties JSON: {e}"
+                            print(error_message)
+                            raise Exception(error_message)
+                    else:
+                        properties = task_result["properties"]
                     
-                message_hash = task_result["properties"]["messageHash"]
-                prompt = task_result["prompt"]
-                text_en = prompt
+                    messageId = properties.get("messageId")
 
-                if costume_zoom and zoom:
-                    zoom_param = f" --zoom {zoom}"
-                    task_result = await self.midjourney_fetch_task_result(taskId)
-                    prompt = task_result["properties"]["finalPrompt"] + zoom_param
+                if not messageId and "buttons" in task_result and task_result["buttons"]:
+                    try:
+                        buttons = json.loads(task_result["buttons"])
+                        if buttons and len(buttons) > 0:
+                            first_button_id = buttons[0].get("customId", "")
+                            parts = first_button_id.split("::")
+                            if len(parts) >= 5:
+                                messageId = parts[4]
+                    except Exception as e:
+                        print(f"Failed to extract messageId from buttons: {e}")
 
-                    custom_id = self.generate_custom_id("zoom", 1, task_result["properties"]["messageHash"])
-                    response = await self.submit("ACTION", taskId, 1, {"customId": custom_id})
+                if not messageId:
+                    error_message = "Could not find messageId in task result"
+                    print(error_message)
+                    raise Exception(error_message)
+                
+                prompt = task_result.get("prompt", "")
 
-                    response = await self.submit_modal(prompt, response["result"])
-
-                    image_url = await self.process_task(response["result"])
-
-                elif upsample_v6_2x_subtle:
-                    custom_id = self.generate_custom_id("upsample_v6_2x_subtle", 1, message_hash)
-                    response = await self.submit("upsample_v6_2x_subtle", taskId, 1, {"customId": custom_id})
-                    image_url = await self.process_task(response["result"])
+                customId = None
+                if upsample_v6_2x_subtle:
+                    customId = f"MJ::JOB::upsample_v6_2x_subtle::2::{messageId}::SOLO"
                 elif upsample_v6_2x_creative:
-                    custom_id = self.generate_custom_id("upsample_v6_2x_creative", 1, message_hash)
-                    response = await self.submit("upsample_v6_2x_creative", taskId, 1, {"customId": custom_id})
-                    image_url = await self.process_task(response["result"])
+                    customId = f"MJ::JOB::upsample_v6_2x_creative::2::{messageId}::SOLO"
+                elif costume_zoom:
+                    customId = f"MJ::CustomZoom::{messageId}::2"
                 elif pan_left:
-                    custom_id = self.generate_custom_id("pan_left", 1, message_hash)
-                    response = await self.submit("pan_left", taskId, 1, {"customId": custom_id})
-                    image_url = await self.process_task(response["result"])
+                    customId = f"MJ::JOB::pan_left::2::{messageId}::SOLO"
                 elif pan_right:
-                    custom_id = self.generate_custom_id("pan_right", 1, message_hash)
-                    response = await self.submit("pan_right", taskId, 1, {"customId": custom_id})
-                    image_url = await self.process_task(response["result"])
+                    customId = f"MJ::JOB::pan_right::2::{messageId}::SOLO"
                 elif pan_up:
-                    custom_id = self.generate_custom_id("pan_up", 1, message_hash)
-                    response = await self.submit("pan_up", taskId, 1, {"customId": custom_id})
-                    image_url = await self.process_task(response["result"])
+                    customId = f"MJ::JOB::pan_up::2::{messageId}::SOLO"
                 elif pan_down:
-                    custom_id = self.generate_custom_id("pan_down", 1, message_hash)
-                    response = await self.submit("pan_down", taskId, 1, {"customId": custom_id})
-                    image_url = await self.process_task(response["result"])
+                    customId = f"MJ::JOB::pan_down::2::{messageId}::SOLO"
+                else:
+                    raise Exception("No action selected")
+                
+                print(f"Generated customId: {customId}")
+
+                if costume_zoom and zoom > 1.0:
+                    zoom_param = f" --zoom {zoom}"
+                    final_prompt = prompt + zoom_param
+ 
+                    action_response = await self.submit_action(customId, taskId)
+                    new_task_id = action_response.get("result", "")
                     
+                    if not new_task_id:
+                        raise Exception("Failed to get new task ID from action response")
+
+                    modal_response = await self.submit_modal(final_prompt, new_task_id)
+                    final_task_id = modal_response.get("result", "")
+                    
+                    if not final_task_id:
+                        raise Exception("Failed to get task ID from modal response")
+
+                    image_url = await self.process_task(final_task_id)
+                    
+                else:  
+                    action_response = await self.submit_action(customId, taskId)
+                    new_task_id = action_response.get("result", "")
+                    
+                    if not new_task_id:
+                        raise Exception("Failed to get new task ID from action response")
+
+                    image_url = await self.process_task(new_task_id)
+
                 if image_url:
                     response = requests.get(image_url)
                     image = Image.open(BytesIO(response.content))
@@ -1128,42 +1210,6 @@ class Comfly_Mjv(ComflyBaseNode):
             print("No taskId provided.")
             return ("No taskId provided.",)
 
-        return (image_url,)
-
-
-    
-    async def submit_modal(self, prompt, taskId):
-        headers = self.get_headers()
-        payload = {
-            "prompt": prompt,
-            "taskId": taskId
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/modal", headers=headers, json=payload) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data
-                else:
-                    error_message = f"Error submitting Midjourney modal: {response.status}"
-                    print(error_message)
-                    raise Exception(error_message)
-    
-    def generate_custom_id(self, action, index, message_hash):
-        if action == "zoom":
-            return f"MJ::CustomZoom::{message_hash}"
-        elif action in ["upsample_v6_2x_subtle", "upsample_v6_2x_creative", "upsample_v5_2x", "upsample_v5_4x",
-                   "pan_left", "pan_right", "pan_up", "pan_down", "reroll"]:
-            return f"MJ::JOB::{action}::{index}::{message_hash}::SOLO"
-        elif action.startswith("Outpaint"):
-            return f"MJ::{action}::{index}::{message_hash}::SOLO"
-        elif action == "Inpaint":
-            return f"MJ::{action}::1::{index}::{message_hash}::SOLO"
-        elif action == "CustomZoom":
-            return f"MJ::CustomZoom::{index}::{message_hash}"
-        else:
-            return f"MJ::JOB::{action}::{index}::{message_hash}"
-
     async def process_task(self, taskId):
         while True:
             await asyncio.sleep(1)
@@ -1177,7 +1223,7 @@ class Comfly_Mjv(ComflyBaseNode):
                     raise Exception(error_message)
 
                 if task_result.get("status") == "SUCCESS":
-                    return task_result["imageUrl"]
+                    return task_result.get("imageUrl", task_result.get("image_url", ""))
                     
             except Exception as e:
                 if "Task failed:" in str(e):
@@ -1187,40 +1233,190 @@ class Comfly_Mjv(ComflyBaseNode):
                 raise Exception(error_message)
 
 
-    async def midjourney_fetch_task_result(self, taskId):
-        headers = {
+class Comfly_Mj_swap_face(ComflyBaseNode):
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "source_image": ("IMAGE",),
+                "target_image": ("IMAGE",),
+            },
+            "optional": {
+                "api_key": ("STRING", {"default": ""}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})
+            }
+        }
+    
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("image", "image_url")
+    FUNCTION = "swap_face"
+    CATEGORY = "Comfly/Midjourney"
+
+    def __init__(self):
+        super().__init__()
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 300
+        self.poll_interval = 3 
+
+    def get_headers(self):
+        return {
             "Content-Type": "application/json",
             "Authorization": "Bearer " + self.api_key
         }
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.midjourney_api_url[self.speed]}/mj/task/{taskId}/fetch", headers=headers, timeout=self.timeout) as response:
-                    if response.status == 200:
-                        try:
-                            data = await response.json()
+        
+    def image_to_base64(self, image_tensor):
+        """Convert tensor to base64 string with data URI prefix"""
+        if image_tensor is None:
+            return None
+            
+        pil_image = tensor2pil(image_tensor)[0]
+        buffered = BytesIO()
+        pil_image.save(buffered, format="PNG")
+        base64_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+        return f"data:image/png;base64,{base64_str}"
 
-                            return data
-                        except aiohttp.client_exceptions.ContentTypeError:
-                            text_response = await response.text()
-                            try:
-                                import json
-                                data = json.loads(text_response)
-                                return data
-                            except json.JSONDecodeError:
-                                if text_response and len(text_response) < 100:
-                                    return {"status": "SUCCESS", "progress": "100%", "imageUrl": text_response.strip()}
-                                raise Exception(f"Server returned invalid response: {text_response}")
-                    else:
-                        error_message = f"Error fetching Midjourney task result: {response.status}"
-                        try:
-                            error_details = await response.text()
-                            error_message += f" - {error_details}"
-                        except:
-                            pass
-                        raise Exception(error_message)
-        except asyncio.TimeoutError:
-            error_message = f"Timeout error: Request to fetch task result timed out after {self.timeout} seconds"
-            raise Exception(error_message)
+    def fetch_task_result(self, task_id):
+        """Fetch task result by task_id"""
+        try:
+            response = requests.get(
+                f"https://ai.comfly.chat/mj/task/{task_id}/fetch",
+                headers=self.get_headers(),
+                timeout=self.timeout
+            )
+            
+            if response.status_code != 200:
+                return None, f"API Error: {response.status_code} - {response.text}"
+                
+            result = response.json()
+            return result, None
+            
+        except Exception as e:
+            return None, f"Error fetching task result: {str(e)}"
+
+    def swap_face(self, source_image, target_image, api_key="", seed=0):
+        if api_key.strip():
+            self.api_key = api_key
+            config = get_config()
+            config['api_key'] = api_key
+            save_config(config)
+            
+        if not self.api_key:
+            return (source_image, "API key not provided or not found in config")
+            
+        try:
+            source_base64 = self.image_to_base64(source_image)
+            target_base64 = self.image_to_base64(target_image)
+            
+            if not source_base64 or not target_base64:
+                return (source_image, "Failed to convert images to base64 format")
+            
+            payload = {
+                "sourceBase64": source_base64,
+                "targetBase64": target_base64
+            }
+
+            if seed > 0:
+                payload["seed"] = seed
+            
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(5)
+
+            print("Sending request to face swap API...")
+            response = requests.post(
+                "https://ai.comfly.chat/mj/insight-face/swap",
+                headers=self.get_headers(),
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            pbar.update_absolute(10)
+            
+            if response.status_code != 200:
+                error_message = f"API Error: {response.status_code} - {response.text}"
+                print(error_message)
+                return (source_image, error_message)
+                
+            result = response.json()
+
+            if "result" not in result:
+                error_message = "No task ID (result field) in API response"
+                print(error_message)
+                return (source_image, error_message)
+                
+            task_id = result["result"]
+            print(f"Got task ID: {task_id}")
+
+            start_time = time.time()
+            last_progress = 0
+            
+            while time.time() - start_time < self.timeout:
+                task_result, error = self.fetch_task_result(task_id)
+                
+                if error:
+                    print(f"Error fetching task result: {error}")
+                    time.sleep(self.poll_interval)
+                    continue
+                
+                status = task_result.get("status")
+                progress_str = task_result.get("progress", "0%").rstrip("%")
+                
+                try:
+                    progress = int(progress_str)
+                except ValueError:
+                    progress = last_progress
+                
+                if progress > last_progress:
+                    last_progress = progress
+                    pbar.update_absolute(10 + int(progress * 0.8))
+                
+                if status == "SUCCESS":
+                    image_url = None
+                    for field in ["imageUrl", "image_url", "url"]:
+                        if field in task_result:
+                            image_url = task_result.get(field)
+                            break
+                    
+                    if not image_url:
+                        error_message = "No image URL in completed task result"
+                        print(error_message)
+                        return (source_image, error_message)
+                    
+                    print(f"Found image URL: {image_url}")
+                    
+                    try:
+                        img_response = requests.get(image_url, timeout=self.timeout)
+                        img_response.raise_for_status()
+                        
+                        swapped_image = Image.open(BytesIO(img_response.content))
+                        swapped_tensor = pil2tensor(swapped_image)
+                        
+                        pbar.update_absolute(100)
+                        print(f"Face swap completed successfully")
+                        return (swapped_tensor, image_url)
+                        
+                    except Exception as e:
+                        error_message = f"Error downloading swapped face image: {str(e)}"
+                        print(error_message)
+                        return (source_image, error_message)
+                
+                elif status == "FAILURE":
+                    fail_reason = task_result.get("fail_reason", "Unknown failure")
+                    error_message = f"Task failed: {fail_reason}"
+                    print(error_message)
+                    return (source_image, error_message)
+                
+                time.sleep(self.poll_interval)
+            
+            error_message = f"Task timed out after {self.timeout} seconds"
+            print(error_message)
+            return (source_image, error_message)
+            
+        except Exception as e:
+            error_message = f"Error in face swapping: {str(e)}"
+            print(error_message)
+            import traceback
+            traceback.print_exc()
+            return (source_image, error_message)
 
 
 class Comfly_mjstyle:
@@ -5610,7 +5806,8 @@ NODE_CLASS_MAPPINGS = {
     "Comfly_mjstyle": Comfly_mjstyle,
     "Comfly_upload": Comfly_upload,
     "Comfly_Mju": Comfly_Mju,
-    "Comfly_Mjv": Comfly_Mjv,  
+    "Comfly_Mjv": Comfly_Mjv, 
+    "Comfly_Mj_swap_face": Comfly_Mj_swap_face, 
     "Comfly_kling_text2video": Comfly_kling_text2video,
     "Comfly_kling_image2video": Comfly_kling_image2video,
     "Comfly_kling_multi_image2video": Comfly_kling_multi_image2video,
@@ -5637,6 +5834,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_upload": "Comfly_upload",
     "Comfly_Mju": "Comfly_Mju",
     "Comfly_Mjv": "Comfly_Mjv",  
+    "Comfly_Mj_swap_face": "Comfly MJ Face Swap",
     "Comfly_kling_text2video": "Comfly_kling_text2video",
     "Comfly_kling_image2video": "Comfly_kling_image2video",
     "Comfly_kling_multi_image2video": "Comfly_kling_multi_image2video",
