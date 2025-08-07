@@ -5803,13 +5803,11 @@ class Comfly_Googel_Veo3:
  ############################# Qwen ###########################
 
 class Comfly_qwen_image:
+    
     """
     A node that generates images using Qwen AI service
     """
-    
-    def __init__(self):
-        pass
-        
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -5820,7 +5818,7 @@ class Comfly_qwen_image:
                 "model": (["qwen-image"], {"default": "qwen-image"}),
             },
             "optional": {
-                "api_key": ("STRING", {"default": "", "multiline": False}),
+                "api_key": ("STRING", {"default": ""}),
                 "num_inference_steps": ("INT", {"default": 30, "min": 2, "max": 50, "step": 1}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
                 "guidance_scale": ("FLOAT", {"default": 2.5, "min": 0, "max": 20, "step": 0.5}),
@@ -5834,101 +5832,148 @@ class Comfly_qwen_image:
     RETURN_NAMES = ("image", "response", "image_url")
     FUNCTION = "generate_image"
     CATEGORY = "Comfly/Qwen"
- 
-    def get_config(self):
-        try:
-            config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'Comflyapi.json')
-            with open(config_path, 'r') as f:  
-                config = json.load(f)
-            return config
-        except:
-            return {}
- 
-    def save_config(self, config):
-        config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'Comflyapi.json')
-        with open(config_path, 'w') as f:
-            json.dump(config, f, indent=4)
+       
+    def __init__(self):
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 300
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
  
     def generate_image(self, prompt, size, Custom_size, model, 
                        api_key="", num_inference_steps=30, seed=0, guidance_scale=2.5, 
                        enable_safety_checker=True, negative_prompt="", output_format="png"):
-        if seed != 0:
-            import random
-            random.seed(seed)
-
-        if not api_key.strip():
-            config = self.get_config()
-            api_key = config.get("api_key", "")
-            if not api_key:
-                return (None, "API key not found. Please provide an API key.", "")
-        else:
-            config = self.get_config()
-            config["api_key"] = api_key
-            self.save_config(config)
-
-        url = "https://ai.comfly.chat/v1/images/generations"
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-
-        actual_size = Custom_size if size == "Custom" else size
-
-        if size == "Custom" and (Custom_size == "Enter custom size (e.g. 1280x720)" or "x" not in Custom_size):
-            return (None, "Please enter a valid custom size in the format 'widthxheight' (e.g. 1280x720)", "")
-
-        payload = {
-            "prompt": prompt,
-            "size": actual_size,  
-            "model": model,
-        }
-
-        if num_inference_steps != 30:
-            payload["num_inference_steps"] = num_inference_steps
+        if api_key.strip():
+            self.api_key = api_key
+            config = get_config()
+            config['api_key'] = api_key
+            save_config(config)
             
-        if seed != 0:
-            payload["seed"] = seed
-            
-        if guidance_scale != 2.5:
-            payload["guidance_scale"] = guidance_scale
-            
-        if not enable_safety_checker:
-            payload["enable_safety_checker"] = enable_safety_checker
-            
-        if negative_prompt.strip():
-            payload["negative_prompt"] = negative_prompt
-            
-        if output_format != "png":
-            payload["output_format"] = output_format
-        
         try:
-            response = requests.post(url, headers=headers, json=payload)
-            response.raise_for_status()  
-            
-            response_data = response.json()
-
-            if 'data' in response_data and len(response_data['data']) > 0 and 'url' in response_data['data'][0]:
-                image_url = response_data['data'][0]['url']
-
-                print(f"Generated image URL: {image_url}")
-
-                image_response = requests.get(image_url)
-                image_response.raise_for_status()
-
-                image = Image.open(io.BytesIO(image_response.content))
-
-                tensor_image = pil2tensor(image)
+            if not self.api_key:
+                error_message = "API key not found in Comflyapi.json"
+                print(error_message)
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, error_message, "")
                 
-                return (tensor_image, json.dumps(response_data, indent=2), image_url)
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(10)
+            
+            actual_size = Custom_size if size == "Custom" else size
+
+            if size == "Custom" and (Custom_size == "Enter custom size (e.g. 1280x720)" or "x" not in Custom_size):
+                error_message = "Please enter a valid custom size in the format 'widthxheight' (e.g. 1280x720)"
+                print(error_message)
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, error_message, "")
+
+            payload = {
+                "prompt": prompt,
+                "size": actual_size,  
+                "model": model,
+            }
+
+            if num_inference_steps != 30:
+                payload["num_inference_steps"] = num_inference_steps
+                
+            if seed != 0:
+                payload["seed"] = seed
+                
+            if guidance_scale != 2.5:
+                payload["guidance_scale"] = guidance_scale
+                
+            if not enable_safety_checker:
+                payload["enable_safety_checker"] = enable_safety_checker
+                
+            if negative_prompt.strip():
+                payload["negative_prompt"] = negative_prompt
+                
+            if output_format != "png":
+                payload["output_format"] = output_format
+            
+            pbar.update_absolute(30)
+            
+            response = requests.post(
+                "https://ai.comfly.chat/v1/images/generations", 
+                headers=self.get_headers(),
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            pbar.update_absolute(50)
+            
+            if response.status_code != 200:
+                error_message = f"API Error: {response.status_code} - {response.text}"
+                print(error_message)
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, error_message, "")
+                
+            result = response.json()
+
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            response_info = f"**Qwen Image Generation ({timestamp})**\n\n"
+            response_info += f"Prompt: {prompt}\n"
+            response_info += f"Model: {model}\n"
+            response_info += f"Size: {actual_size}\n"
+            response_info += f"Seed: {seed}\n\n"
+            
+            generated_images = []
+            image_urls = []
+            
+            if "data" in result and result["data"]:
+                for i, item in enumerate(result["data"]):
+                    pbar.update_absolute(50 + (i+1) * 40 // len(result["data"]))
+                    
+                    if "b64_json" in item:
+                        image_data = base64.b64decode(item["b64_json"])
+                        generated_image = Image.open(BytesIO(image_data))
+                        generated_tensor = pil2tensor(generated_image)
+                        generated_images.append(generated_tensor)
+                    elif "url" in item:
+                        image_url = item["url"]
+                        image_urls.append(image_url)
+                        try:
+                            img_response = requests.get(image_url, timeout=self.timeout)
+                            img_response.raise_for_status()
+                            generated_image = Image.open(BytesIO(img_response.content))
+                            generated_tensor = pil2tensor(generated_image)
+                            generated_images.append(generated_tensor)
+                        except Exception as e:
+                            print(f"Error downloading image from URL: {str(e)}")
             else:
-                error_msg = f"Invalid response format: {response_data}"
-                print(error_msg)
-                return (None, error_msg, "")
+                error_message = "No generated images in response"
+                print(error_message)
+                response_info += f"Error: {error_message}\n"
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, response_info, "")
+                
+            if generated_images:
+
+                combined_tensor = torch.cat(generated_images, dim=0)
+                
+                pbar.update_absolute(100)
+                return (combined_tensor, response_info, image_urls[0] if image_urls else "")
+            else:
+                error_message = "No images were successfully processed"
+                print(error_message)
+                response_info += f"Error: {error_message}\n"
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, response_info, "")
                 
         except Exception as e:
-            error_msg = f"Error generating image: {str(e)}"
-            print(error_msg)
-            return (None, error_msg, "")
+            error_message = f"Error in image generation: {str(e)}"
+            print(error_message)
+            blank_image = Image.new('RGB', (1024, 1024), color='white')
+            blank_tensor = pil2tensor(blank_image)
+            return (blank_tensor, error_message, "")
 
 
 WEB_DIRECTORY = "./web"    
