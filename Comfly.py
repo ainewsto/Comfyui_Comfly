@@ -5799,6 +5799,138 @@ class Comfly_Googel_Veo3:
             return ("", "", json.dumps({"code": "error", "message": error_message}))
     
 
+
+ ############################# Qwen ###########################
+
+class Comfly_qwen_image:
+    """
+    A node that generates images using Qwen AI service
+    """
+    
+    def __init__(self):
+        pass
+        
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "size": (["512x512", "1024x1024", "768x1024", "576x1024", "1024x768", "1024x576", "Custom"], {"default": "1024x768"}),
+                "Custom_size": ("STRING", {"default": "Enter custom size (e.g. 1280x720)", "multiline": False}),
+                "model": (["qwen-image"], {"default": "qwen-image"}),
+            },
+            "optional": {
+                "api_key": ("STRING", {"default": "", "multiline": False}),
+                "num_inference_steps": ("INT", {"default": 30, "min": 2, "max": 50, "step": 1}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                "guidance_scale": ("FLOAT", {"default": 2.5, "min": 0, "max": 20, "step": 0.5}),
+                "enable_safety_checker": ("BOOLEAN", {"default": True}),
+                "negative_prompt": ("STRING", {"default": "", "multiline": True}),
+                "output_format": (["jpeg", "png"], {"default": "png"}),
+            }
+        }
+    
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING")
+    RETURN_NAMES = ("image", "response", "image_url")
+    FUNCTION = "generate_image"
+    CATEGORY = "Comfly/Qwen"
+ 
+    def get_config(self):
+        try:
+            config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'Comflyapi.json')
+            with open(config_path, 'r') as f:  
+                config = json.load(f)
+            return config
+        except:
+            return {}
+ 
+    def save_config(self, config):
+        config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'Comflyapi.json')
+        with open(config_path, 'w') as f:
+            json.dump(config, f, indent=4)
+ 
+    def generate_image(self, prompt, size, Custom_size, model, 
+                       api_key="", num_inference_steps=30, seed=0, guidance_scale=2.5, 
+                       enable_safety_checker=True, negative_prompt="", output_format="png"):
+        if seed != 0:
+            import random
+            random.seed(seed)
+
+        if not api_key.strip():
+            config = self.get_config()
+            api_key = config.get("api_key", "")
+            if not api_key:
+                return (None, "API key not found. Please provide an API key.", "")
+        else:
+            config = self.get_config()
+            config["api_key"] = api_key
+            self.save_config(config)
+
+        url = "https://ai.comfly.chat/v1/images/generations"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+
+        actual_size = Custom_size if size == "Custom" else size
+
+        if size == "Custom" and (Custom_size == "Enter custom size (e.g. 1280x720)" or "x" not in Custom_size):
+            return (None, "Please enter a valid custom size in the format 'widthxheight' (e.g. 1280x720)", "")
+
+        payload = {
+            "prompt": prompt,
+            "size": actual_size,  
+            "model": model,
+        }
+
+        if num_inference_steps != 30:
+            payload["num_inference_steps"] = num_inference_steps
+            
+        if seed != 0:
+            payload["seed"] = seed
+            
+        if guidance_scale != 2.5:
+            payload["guidance_scale"] = guidance_scale
+            
+        if not enable_safety_checker:
+            payload["enable_safety_checker"] = enable_safety_checker
+            
+        if negative_prompt.strip():
+            payload["negative_prompt"] = negative_prompt
+            
+        if output_format != "png":
+            payload["output_format"] = output_format
+        
+        try:
+            response = requests.post(url, headers=headers, json=payload)
+            response.raise_for_status()  
+            
+            response_data = response.json()
+
+            if 'data' in response_data and len(response_data['data']) > 0 and 'url' in response_data['data'][0]:
+                image_url = response_data['data'][0]['url']
+
+                print(f"Generated image URL: {image_url}")
+
+                image_response = requests.get(image_url)
+                image_response.raise_for_status()
+
+                image = Image.open(io.BytesIO(image_response.content))
+
+                tensor_image = pil2tensor(image)
+                
+                return (tensor_image, json.dumps(response_data, indent=2), image_url)
+            else:
+                error_msg = f"Invalid response format: {response_data}"
+                print(error_msg)
+                return (None, error_msg, "")
+                
+        except Exception as e:
+            error_msg = f"Error generating image: {str(e)}"
+            print(error_msg)
+            return (None, error_msg, "")
+
+
 WEB_DIRECTORY = "./web"    
         
 NODE_CLASS_MAPPINGS = {
@@ -5826,6 +5958,7 @@ NODE_CLASS_MAPPINGS = {
     "Comfly_Googel_Veo3": Comfly_Googel_Veo3,
     "Comfly_mj_video": Comfly_mj_video, 
     "Comfly_mj_video_extend": Comfly_mj_video_extend,  
+    "Comfly_qwen_image": Comfly_qwen_image
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -5853,4 +5986,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_Googel_Veo3": "Comfly Google Veo3",
     "Comfly_mj_video": "Comfly mj video",
     "Comfly_mj_video_extend": "Comfly MJ Video Extend",
+    "Comfly_qwen_image": "Comfly_qwen_image"
 }

@@ -27,6 +27,11 @@
 
 # 更新 Update：
 
+20250807：
+
+`qwen image节点`: 新增千问绘图节点：Comfly_qwen_image，价格全网最低~
+可以自定义尺寸（size选择Custom后，在Custom_size输入分辨率即可，例如1280x720）。
+
 
 20250731：
 
