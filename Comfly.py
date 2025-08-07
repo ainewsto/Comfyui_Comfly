@@ -5816,6 +5816,7 @@ class Comfly_qwen_image:
                 "size": (["512x512", "1024x1024", "768x1024", "576x1024", "1024x768", "1024x576", "Custom"], {"default": "1024x768"}),
                 "Custom_size": ("STRING", {"default": "Enter custom size (e.g. 1280x720)", "multiline": False}),
                 "model": (["qwen-image"], {"default": "qwen-image"}),
+                "num_images": ([1, 2, 3, 4], {"default": 1}),
             },
             "optional": {
                 "api_key": ("STRING", {"default": ""}),
@@ -5843,7 +5844,7 @@ class Comfly_qwen_image:
             "Authorization": f"Bearer {self.api_key}"
         }
  
-    def generate_image(self, prompt, size, Custom_size, model, 
+    def generate_image(self, prompt, size, Custom_size, model, num_images=1,
                        api_key="", num_inference_steps=30, seed=0, guidance_scale=2.5, 
                        enable_safety_checker=True, negative_prompt="", output_format="png"):
         if api_key.strip():
@@ -5876,6 +5877,7 @@ class Comfly_qwen_image:
                 "prompt": prompt,
                 "size": actual_size,  
                 "model": model,
+                "n": num_images,  
             }
 
             if num_inference_steps != 30:
@@ -5921,6 +5923,7 @@ class Comfly_qwen_image:
             response_info += f"Prompt: {prompt}\n"
             response_info += f"Model: {model}\n"
             response_info += f"Size: {actual_size}\n"
+            response_info += f"Number of Images: {num_images}\n"
             response_info += f"Seed: {seed}\n\n"
             
             generated_images = []
@@ -5955,7 +5958,6 @@ class Comfly_qwen_image:
                 return (blank_tensor, response_info, "")
                 
             if generated_images:
-
                 combined_tensor = torch.cat(generated_images, dim=0)
                 
                 pbar.update_absolute(100)

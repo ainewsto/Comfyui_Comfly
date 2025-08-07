@@ -31,7 +31,7 @@
 
 `qwen image节点`: 新增千问绘图节点：Comfly_qwen_image，价格全网最低~
 可以自定义尺寸（size选择Custom后，在Custom_size输入分辨率即可，例如1280x720）。
-
+num_images生成图片数量是1到4张，注意api计算是按照图片张数来的，生成越多，api消费就多。
 
 20250731：
 
