@@ -529,23 +529,23 @@ class Comfly_Mj(ComflyBaseNode):
         
         return image_url, text, taskId
 
-    async def process_text_midjourney(self, text, pbar, ar, no, c, s, iw, tile, r, video, sw, cw, sv, seed):
+    def process_text_midjourney_sync(self, text, pbar, ar, no, c, s, iw, tile, r, video, sw, cw, sv, seed):
         try:
-            taskId = await self.midjourney_submit_imagine_task(text, ar, no, c, s, iw, tile, r, video, sw, cw, sv, seed)
+            taskId = self.midjourney_submit_imagine_task_sync(text, ar, no, c, s, iw, tile, r, video, sw, cw, sv, seed)
             print(f"Task ID: {taskId}")
             
             task_result = None
+
             while True:
-                await asyncio.sleep(1)
+                time.sleep(1)
                 try:
-                    task_result = await self.midjourney_fetch_task_result(taskId)
+                    task_result = self.midjourney_fetch_task_result_sync(taskId)
  
                     if task_result.get("status") == "FAILURE":
                         fail_reason = task_result.get("fail_reason", "Unknown failure reason")
                         error_message = f"Midjourney task failed: {fail_reason}"
                         print(error_message)  
                         raise Exception(error_message)  
-
                     if task_result.get("status") == "SUCCESS":
                         break
                         
@@ -555,13 +555,14 @@ class Comfly_Mj(ComflyBaseNode):
                     except (ValueError, TypeError):
                         progress_int = 0
                     pbar.update_absolute(progress_int)
+
                 except Exception as e:
                     if "Midjourney task failed" in str(e):
                         raise  
                     print(f"Error fetching task result: {str(e)}")
-                    await asyncio.sleep(2)
+                    time.sleep(2)
                     continue
-
+                
             image_url = task_result.get("imageUrl", "")
             prompt = task_result.get("prompt", text)
 
@@ -571,16 +572,111 @@ class Comfly_Mj(ComflyBaseNode):
             U4 = self.generate_custom_id(task_result.get("id", taskId), "upsample", 4)
 
             return image_url, prompt, U1, U2, U3, U4, taskId 
+        
         except Exception as e:
-            print(f"Error in process_text_midjourney: {str(e)}")
+            print(f"Error in process_text_midjourney_sync: {str(e)}")
             raise e
 
-        
+    def midjourney_submit_imagine_task_sync(self, prompt, ar, no, c, s, iw, tile, r, video, sw, cw, sv, seed):
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + self.api_key
+        }
+        payload = {
+            "base64Array": [],
+            "instanceId": "",
+            "modes": [],
+            "notifyHook": "",
+            "prompt": prompt,
+            "remix": True,
+            "state": "",
+            "ar": ar,
+            "no": no,
+            "c": c,
+            "s": s,
+            "iw": iw,
+            "tile": tile,
+            "r": r,
+            "video": video,
+            "sw": sw,
+            "cw": cw,
+            "sv": sv,
+            "seed": seed
+        }
+        try:
+            response = requests.post(
+                f"{self.midjourney_api_url[self.speed]}/mj/submit/imagine", 
+                headers=headers, 
+                json=payload, 
+                timeout=self.timeout
+            )
+            
+            if response.status_code != 200:
+                error_message = f"Error submitting Midjourney task: {response.status_code}"
+                try:
+                    error_details = response.text
+                    error_message += f" - {error_details}"
+                except:
+                    pass
+                raise Exception(error_message)
+                
+            try:
+                data = response.json()
+                
+                if data.get("status") == "FAILURE":
+                    fail_reason = data.get("fail_reason", "Unknown failure reason")
+                    error_message = f"Midjourney task failed: {fail_reason}"
+                    print(error_message)
+                    raise Exception(error_message)
+                    
+                return data["result"]
+            except (json.JSONDecodeError, KeyError):
+                text_response = response.text
+                if text_response and len(text_response) < 100:
+                    return text_response.strip()
+                raise Exception(f"Server returned invalid response: {text_response}")
+        except Exception as e:
+            if "Midjourney task failed" in str(e):
+                raise  
+            print(f"Exception in midjourney_submit_imagine_task_sync: {str(e)}")
+            raise e
+
+    def midjourney_fetch_task_result_sync(self, taskId):
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + self.api_key
+        }
+        try:
+            response = requests.get(
+                f"{self.midjourney_api_url[self.speed]}/mj/task/{taskId}/fetch",
+                headers=headers,
+                timeout=self.timeout
+            )
+            
+            if response.status_code != 200:
+                error_message = f"Error fetching Midjourney task result: {response.status_code}"
+                try:
+                    error_details = response.text
+                    error_message += f" - {error_details}"
+                except:
+                    pass
+                raise Exception(error_message)
+                
+            try:
+                data = response.json()
+                return data
+            except json.JSONDecodeError:
+                text_response = response.text
+                if text_response and len(text_response) < 100:
+                    return {"status": "SUCCESS", "progress": "100%", "imageUrl": text_response.strip()}
+                raise Exception(f"Server returned invalid response: {text_response}")
+        except Exception as e:
+            print(f"Error in midjourney_fetch_task_result_sync: {str(e)}")
+            raise e
+            
     def process_text(self, pbar, ar, no, c, s, iw, tile, r, video, sw, cw, sv, seed):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        image_url, text, U1, U2, U3, U4, taskId = loop.run_until_complete(self.process_text_midjourney(self.text, pbar, ar, no, c, s, iw, tile, r, video, sw, cw, sv, seed))
-        loop.close()
+
+        image_url, text, U1, U2, U3, U4, taskId = self.process_text_midjourney_sync(self.text, pbar, ar, no, c, s, iw, tile, r, video, sw, cw, sv, seed)
         
         U = json.dumps({"U1": U1, "U2": U2, "U3": U3, "U4": U4})
 
@@ -4420,7 +4516,10 @@ class Comfly_gpt_image_1_edit:
 
             for item in result["data"]:
                 if "b64_json" in item:
-                    image_data = base64.b64decode(item["b64_json"])
+                    b64_data = item["b64_json"]
+                    if b64_data.startswith("data:image/png;base64,"):
+                        b64_data = b64_data[len("data:image/png;base64,"):]    
+                    image_data = base64.b64decode(b64_data)
                     edited_image = Image.open(BytesIO(image_data))
                     edited_tensor = pil2tensor(edited_image)
                     edited_images.append(edited_tensor)
@@ -4605,14 +4704,15 @@ class Comfly_gpt_image_1:
                     pbar.update_absolute(50 + (i+1) * 50 // len(result["data"]))
                     
                     if "b64_json" in item:
-                        # Decode base64 image
+                    b64_data = item["b64_json"]
+                        if b64_data.startswith("data:image/png;base64,"):
+                            b64_data = b64_data[len("data:image/png;base64,"):] 
                         image_data = base64.b64decode(item["b64_json"])
                         generated_image = Image.open(BytesIO(image_data))
                         generated_tensor = pil2tensor(generated_image)
                         generated_images.append(generated_tensor)
                     elif "url" in item:
                         image_urls.append(item["url"])
-                        # Download and process the image from URL
                         try:
                             img_response = requests.get(item["url"])
                             if img_response.status_code == 200:
@@ -4628,8 +4728,7 @@ class Comfly_gpt_image_1:
                 blank_image = Image.new('RGB', (1024, 1024), color='white')
                 blank_tensor = pil2tensor(blank_image)
                 return (blank_tensor, response_info)
-                
-            # Add usage information to the response if available
+
             if "usage" in result:
                 response_info += "Usage Information:\n"
                 if "total_tokens" in result["usage"]:
