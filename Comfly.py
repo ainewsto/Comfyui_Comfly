@@ -4728,10 +4728,8 @@ class ComflyChatGPTApi:
             with open(file_path, "rb") as file:
                 file_content = file.read()
                 encoded_content = base64.b64encode(file_content).decode('utf-8')
-                # Get MIME type
                 mime_type, _ = mimetypes.guess_type(file_path)
                 if not mime_type:
-                    # Default to binary if MIME type can't be determined
                     mime_type = "application/octet-stream"
                 return encoded_content, mime_type
         except Exception as e:
@@ -4799,6 +4797,47 @@ class ComflyChatGPTApi:
             formatted_history += f"**AI**: {entry['ai']}\n\n"
             formatted_history += "---\n\n"
         return formatted_history.strip()
+
+    def send_request_synchronous(self, payload, pbar):
+        """Send a synchronous streaming request to the API"""
+        full_response = ""
+        session = requests.Session()
+        
+        try:
+            response = session.post(
+                self.api_endpoint,
+                headers=self.get_headers(),
+                json=payload, 
+                stream=True,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+
+            for line in response.iter_lines():
+                if line:
+                    line_text = line.decode('utf-8').strip()
+                    if line_text.startswith('data: '):
+                        data = line_text[6:]  
+                        if data == '[DONE]':
+                            break
+                        try:
+                            chunk = json.loads(data)
+                            if 'choices' in chunk and chunk['choices']:
+                                delta = chunk['choices'][0].get('delta', {})
+                                if 'content' in delta:
+                                    content = delta['content']
+                                    full_response += content
+
+                                    pbar.update_absolute(min(40, 20 + len(full_response) // 100))
+                        except json.JSONDecodeError:
+                            continue
+            
+            return full_response
+            
+        except requests.exceptions.Timeout:
+            raise TimeoutError(f"API request timed out after {self.timeout} seconds")
+        except Exception as e:
+            raise Exception(f"Error in streaming response: {str(e)}")
 
     def process(self, prompt, model, clear_chats=True, files=None, image_url="", images=None, temperature=0.7, 
            max_tokens=4096, top_p=1.0, frequency_penalty=0.0, presence_penalty=0.0, seed=-1,
@@ -4928,11 +4967,8 @@ class ComflyChatGPTApi:
                 "seed": seed,
                 "stream": True  
             }
-        
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            response_text = loop.run_until_complete(self.stream_response(payload, pbar))
-            loop.close()
+
+            response_text = self.send_request_synchronous(payload, pbar)
         
             self.conversation_history.append({
                 "user": prompt,
@@ -4988,46 +5024,7 @@ class ComflyChatGPTApi:
             else:
                 blank_img = Image.new('RGB', (512, 512), color='white')
                 blank_tensor = pil2tensor(blank_img)
-                return (blank_tensor, error_message, "", self.format_conversation_history()) 
-
-    async def stream_response(self, payload, pbar):
-        """Stream response from API"""
-        full_response = ""
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    self.api_endpoint, 
-                    headers=self.get_headers(), 
-                    json=payload,
-                    timeout=self.timeout
-                ) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        raise Exception(f"API Error {response.status}: {error_text}")
-                    
-                    async for line in response.content:
-                        line = line.decode('utf-8').strip()
-                        if line.startswith('data: '):
-                            data = line[6:]  
-                            if data == '[DONE]':
-                                break
-                            try:
-                                chunk = json.loads(data)
-                                if 'choices' in chunk and chunk['choices']:
-                                    delta = chunk['choices'][0].get('delta', {})
-                                    if 'content' in delta:
-                                        content = delta['content']
-                                        full_response += content
-                                       
-                                        pbar.update_absolute(min(40, 20 + len(full_response) // 100))
-                            except json.JSONDecodeError:
-                                continue
-            return full_response
-        
-        except asyncio.TimeoutError:
-            raise TimeoutError(f"API request timed out after {self.timeout} seconds")
-        except Exception as e:
-            raise Exception(f"Error in streaming response: {str(e)}")
+                return (blank_tensor, error_message, "", self.format_conversation_history())
 
 
 
