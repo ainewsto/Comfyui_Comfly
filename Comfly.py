@@ -3447,6 +3447,341 @@ class ComflyGeminiAPI:
 
 ############################# Doubao ###########################
 
+class Comfly_Doubao_Seedream:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "model": ("STRING", {"default": "doubao-seedream-3-0-t2i-250415"}),
+                "response_format": (["url", "b64_json"], {"default": "url"}),
+                "size": (["1024x1024", "864x1152", "1152x864", "1280x720", "720x1280", "832x1248", 
+                         "1248x832", "1512x648", "Custom"], {"default": "1024x1024"}),
+                "Custom_size": ("STRING", {"default": "1536x1024", "multiline": False}),
+                "guidance_scale": ("FLOAT", {"default": 2.5, "min": 1.0, "max": 10.0, "step": 0.1}),
+            },
+            "optional": {
+                "apikey": ("STRING", {"default": ""}),
+                "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647}),
+                "watermark": ("BOOLEAN", {"default": True})
+            }
+        }
+    
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("image", "response")
+    FUNCTION = "generate_image"
+    CATEGORY = "Comfly/Doubao"
+
+    def __init__(self):
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 300
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+    
+    def validate_custom_size(self, size_str):
+        """Validate a custom size string to ensure it's in the correct format and within allowed range."""
+        try:
+            if 'x' not in size_str:
+                return False, "Custom size must be in format 'widthxheight'"
+            
+            width, height = map(int, size_str.split('x'))
+
+            if width < 512 or width > 2048 or height < 512 or height > 2048:
+                return False, f"Custom size dimensions must be between 512 and 2048 pixels. Got {width}x{height}."
+            
+            return True, f"{width}x{height}"
+        except ValueError:
+            return False, "Custom size must contain valid integers in format 'widthxheight'"
+    
+    def generate_image(self, prompt, model, response_format="url", size="1024x1024", 
+                       Custom_size="1536x1024", guidance_scale=2.5, apikey="", 
+                       seed=-1, watermark=True):
+        if apikey.strip():
+            self.api_key = apikey
+            config = get_config()
+            config['api_key'] = apikey
+            save_config(config)
+            
+        if not self.api_key:
+            error_message = "API key not found in Comflyapi.json"
+            print(error_message)
+            blank_image = Image.new('RGB', (1024, 1024), color='white')
+            blank_tensor = pil2tensor(blank_image)
+            return (blank_tensor, error_message)
+            
+        try:
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(10)
+
+            final_size = size
+            if size == "Custom":
+                is_valid, result = self.validate_custom_size(Custom_size)
+                if not is_valid:
+                    error_message = result
+                    print(error_message)
+                    blank_image = Image.new('RGB', (1024, 1024), color='white')
+                    blank_tensor = pil2tensor(blank_image)
+                    return (blank_tensor, error_message)
+                final_size = result
+            
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "response_format": response_format,
+                "size": final_size,
+                "guidance_scale": guidance_scale,
+                "watermark": watermark
+            }
+            
+            if seed != -1:
+                payload["seed"] = seed
+            
+            response = requests.post(
+                "https://ai.comfly.chat/v1/images/generations",
+                headers=self.get_headers(),
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            pbar.update_absolute(30)
+            
+            if response.status_code != 200:
+                error_message = f"API Error: {response.status_code} - {response.text}"
+                print(error_message)
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, error_message)
+                
+            result = response.json()
+            
+            pbar.update_absolute(50)
+            
+            if "data" not in result or not result["data"]:
+                error_message = "No image data in response"
+                print(error_message)
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, error_message)
+            
+            image_url = None
+            image_data = None
+
+            if response_format == "url":
+                image_url = result["data"][0].get("url")
+                if not image_url:
+                    error_message = "No image URL in response"
+                    print(error_message)
+                    blank_image = Image.new('RGB', (1024, 1024), color='white')
+                    blank_tensor = pil2tensor(blank_image)
+                    return (blank_tensor, error_message)
+                    
+                try:
+                    img_response = requests.get(image_url, timeout=self.timeout)
+                    img_response.raise_for_status()
+                    image_data = BytesIO(img_response.content)
+                except Exception as e:
+                    error_message = f"Error downloading image: {str(e)}"
+                    print(error_message)
+                    blank_image = Image.new('RGB', (1024, 1024), color='white')
+                    blank_tensor = pil2tensor(blank_image)
+                    return (blank_tensor, error_message)
+            else:
+                b64_data = result["data"][0].get("b64_json")
+                if not b64_data:
+                    error_message = "No base64 data in response"
+                    print(error_message)
+                    blank_image = Image.new('RGB', (1024, 1024), color='white')
+                    blank_tensor = pil2tensor(blank_image)
+                    return (blank_tensor, error_message)
+                    
+                image_data = BytesIO(base64.b64decode(b64_data))
+            
+            pbar.update_absolute(80)
+
+            try:
+                pil_image = Image.open(image_data)
+                tensor_image = pil2tensor(pil_image)
+
+                response_info = {
+                    "prompt": prompt,
+                    "model": model,
+                    "size": final_size,
+                    "guidance_scale": guidance_scale,
+                    "seed": seed if seed != -1 else "auto",
+                    "url": image_url if image_url else "base64 data"
+                }
+                
+                pbar.update_absolute(100)
+                return (tensor_image, json.dumps(response_info, indent=2))
+                
+            except Exception as e:
+                error_message = f"Error processing image: {str(e)}"
+                print(error_message)
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, error_message)
+                
+        except Exception as e:
+            error_message = f"Error generating image: {str(e)}"
+            print(error_message)
+            blank_image = Image.new('RGB', (1024, 1024), color='white')
+            blank_tensor = pil2tensor(blank_image)
+            return (blank_tensor, error_message)
+
+
+class Comfly_Doubao_Seededit:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "prompt": ("STRING", {"multiline": True}),
+                "model": ("STRING", {"default": "doubao-seededit-3-0-i2i-250628"}),
+                "response_format": (["url", "b64_json"], {"default": "url"}),
+                "size": ("STRING", {"default": "adaptive"}),
+                "guidance_scale": ("FLOAT", {"default": 5.5, "min": 1.0, "max": 10.0, "step": 0.1}),
+            },
+            "optional": {
+                "apikey": ("STRING", {"default": ""}),
+                "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647}),
+                "watermark": ("BOOLEAN", {"default": True})
+            }
+        }
+    
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("image", "response")
+    FUNCTION = "edit_image"
+    CATEGORY = "Comfly/Doubao"
+
+    def __init__(self):
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 300
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+    
+    def edit_image(self, image, prompt, model, response_format="url", size="adaptive", 
+                guidance_scale=5.5, apikey="", seed=-1, watermark=True):
+        if apikey.strip():
+            self.api_key = apikey
+            config = get_config()
+            config['api_key'] = apikey
+            save_config(config)
+            
+        if not self.api_key:
+            error_message = "API key not found in Comflyapi.json"
+            print(error_message)
+            return (image, error_message)
+            
+        try:
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(10)
+
+            pil_image = tensor2pil(image)[0]
+
+            buffered = BytesIO()
+            pil_image.save(buffered, format="PNG")
+            img_base64 = f"data:image/png;base64,{base64.b64encode(buffered.getvalue()).decode('utf-8')}"
+            
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "image": img_base64,
+                "response_format": response_format,
+                "size": size,
+                "guidance_scale": guidance_scale,
+                "watermark": watermark
+            }
+            
+            if seed != -1:
+                payload["seed"] = seed
+            
+            response = requests.post(
+                "https://ai.comfly.chat/v1/images/generations",
+                headers=self.get_headers(),
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            pbar.update_absolute(30)
+            
+            if response.status_code != 200:
+                error_message = f"API Error: {response.status_code} - {response.text}"
+                print(error_message)
+                return (image, error_message)
+                
+            result = response.json()
+            
+            pbar.update_absolute(50)
+            
+            if "data" not in result or not result["data"]:
+                error_message = "No image data in response"
+                print(error_message)
+                return (image, error_message)
+            
+            image_url = None
+            image_data = None
+
+            if response_format == "url":
+                image_url = result["data"][0].get("url")
+                if not image_url:
+                    error_message = "No image URL in response"
+                    print(error_message)
+                    return (image, error_message)
+                    
+                try:
+                    img_response = requests.get(image_url, timeout=self.timeout)
+                    img_response.raise_for_status()
+                    image_data = BytesIO(img_response.content)
+                except Exception as e:
+                    error_message = f"Error downloading image: {str(e)}"
+                    print(error_message)
+                    return (image, error_message)
+            else:
+                b64_data = result["data"][0].get("b64_json")
+                if not b64_data:
+                    error_message = "No base64 data in response"
+                    print(error_message)
+                    return (image, error_message)
+                    
+                image_data = BytesIO(base64.b64decode(b64_data))
+            
+            pbar.update_absolute(80)
+
+            try:
+                edited_pil_image = Image.open(image_data)
+                edited_tensor = pil2tensor(edited_pil_image)
+
+                response_info = {
+                    "prompt": prompt,
+                    "model": model,
+                    "size": size,
+                    "guidance_scale": guidance_scale,
+                    "seed": seed if seed != -1 else "auto",
+                    "url": image_url if image_url else "base64 data"
+                }
+                
+                pbar.update_absolute(100)
+                return (edited_tensor, json.dumps(response_info, indent=2))
+                
+            except Exception as e:
+                error_message = f"Error processing edited image: {str(e)}"
+                print(error_message)
+                return (image, error_message)
+                
+        except Exception as e:
+            error_message = f"Error editing image: {str(e)}"
+            print(error_message)
+            return (image, error_message)
+
+
 class ComflyJimengApi:
     @classmethod
     def INPUT_TYPES(cls):
@@ -4761,7 +5096,6 @@ class Comfly_gpt_image_1:
             blank_image = Image.new('RGB', (1024, 1024), color='white')
             blank_tensor = pil2tensor(blank_image)
             return (blank_tensor, error_message)
-
 
 
 class ComflyChatGPTApi:
@@ -6095,7 +6429,9 @@ NODE_CLASS_MAPPINGS = {
     "Comfly_Googel_Veo3": Comfly_Googel_Veo3,
     "Comfly_mj_video": Comfly_mj_video, 
     "Comfly_mj_video_extend": Comfly_mj_video_extend,  
-    "Comfly_qwen_image": Comfly_qwen_image
+    "Comfly_qwen_image": Comfly_qwen_image,
+    "Comfly_Doubao_Seedream": Comfly_Doubao_Seedream,
+    "Comfly_Doubao_Seededit": Comfly_Doubao_Seededit
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -6123,5 +6459,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_Googel_Veo3": "Comfly Google Veo3",
     "Comfly_mj_video": "Comfly mj video",
     "Comfly_mj_video_extend": "Comfly MJ Video Extend",
-    "Comfly_qwen_image": "Comfly_qwen_image"
+    "Comfly_qwen_image": "Comfly_qwen_image",
+    "Comfly_Doubao_Seedream": "Comfly Doubao Seedream",
+    "Comfly_Doubao_Seededit": "Comfly Doubao Seededit"
 }

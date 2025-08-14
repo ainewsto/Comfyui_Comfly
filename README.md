@@ -27,6 +27,11 @@
 
 # 更新 Update：
 
+20250814：
+
+`doubao节点`: 新增节点：Comfly_Doubao_Seedream和Comfly_Doubao_Seededit都是3.0模型
+
+
 20250807：
 
 `qwen image节点`: 新增千问绘图节点：Comfly_qwen_image，价格全网最低~
