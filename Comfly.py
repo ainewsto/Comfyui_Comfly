@@ -3175,11 +3175,9 @@ class ComflyGeminiAPI:
         return base64.b64encode(buffered.getvalue()).decode('utf-8')
 
     def extract_image_urls(self, response_text):
-        # Extract URLs from markdown image format: ![description](url)
         image_pattern = r'!\[.*?\]\((.*?)\)'
         matches = re.findall(image_pattern, response_text)
-        
-        # If no markdown format found, extract raw URLs that look like image links
+
         if not matches:
             url_pattern = r'https?://\S+\.(?:jpg|jpeg|png|gif|webp)'
             matches = re.findall(url_pattern, response_text)
@@ -3188,30 +3186,24 @@ class ComflyGeminiAPI:
 
     def resize_to_target_size(self, image, target_size):
         """Resize image to target size while preserving aspect ratio with padding"""
-        # Convert PIL image to target size
+
         img_width, img_height = image.size
         target_width, target_height = target_size
-        
-        # Calculate the scaling factor to fit the image within the target size
+
         width_ratio = target_width / img_width
         height_ratio = target_height / img_height
         scale = min(width_ratio, height_ratio)
-        
-        # Calculate new dimensions
+
         new_width = int(img_width * scale)
         new_height = int(img_height * scale)
-        
-        # Resize the image
+
         resized_img = image.resize((new_width, new_height), Image.LANCZOS)
-        
-        # Create a new blank image with the target size
+
         new_img = Image.new("RGB", (target_width, target_height), (255, 255, 255))
-        
-        # Calculate position to paste the resized image
+
         paste_x = (target_width - new_width) // 2
         paste_y = (target_height - new_height) // 2
-        
-        # Paste the resized image
+ 
         new_img.paste(resized_img, (paste_x, paste_y))
         
         return new_img
@@ -3223,25 +3215,21 @@ class ComflyGeminiAPI:
 
     def process(self, prompt, model, resolution, num_images, temperature, top_p, seed, timeout=120, 
                 object_image=None, subject_image=None, scene_image=None, api_key=""):
-        # Update API key if provided
+
         if api_key.strip():
             self.api_key = api_key
             config = get_config()
             config['api_key'] = api_key
             save_config(config)
-            
-        # Set the timeout value from user input
+
         self.timeout = timeout
         
         try:
-            
-            # Get current timestamp for formatting
+
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-            
-            # Get target size based on resolution or input images
+
             target_size = None
-            
-            # Determine if we should use an input image's size
+
             if resolution == "object_image size" and object_image is not None:
                 pil_image = tensor2pil(object_image)[0]
                 target_size = pil_image.size
@@ -3252,33 +3240,25 @@ class ComflyGeminiAPI:
                 pil_image = tensor2pil(scene_image)[0]
                 target_size = pil_image.size
             else:
-                # Use the specified resolution
                 target_size = self.parse_resolution(resolution)
-            
-            # Check if we have image inputs
+
             has_images = object_image is not None or subject_image is not None or scene_image is not None
-            
-            # Prepare message content
+
             content = []
-            
-            # Build different prompts and content based on input type
+
             if has_images:
-                # When we have image inputs, use the original prompt without enhancements
                 content.append({"type": "text", "text": prompt})
-                
-                # Prepare descriptions for each image type
+ 
                 image_descriptions = {
                     "object_image": "an object or item",
                     "subject_image": "a subject or character",
                     "scene_image": "a scene or environment"
                 }
-                
-                # Add available images to content
+ 
                 for image_var, image_tensor in [("object_image", object_image), 
                                              ("subject_image", subject_image), 
                                              ("scene_image", scene_image)]:
                     if image_tensor is not None:
-                        # Convert tensor to PIL image
                         pil_image = tensor2pil(image_tensor)[0]
                         image_base64 = self.image_to_base64(pil_image)
                         content.append({
@@ -3286,8 +3266,7 @@ class ComflyGeminiAPI:
                             "image_url": {"url": f"data:image/png;base64,{image_base64}"}
                         })
             else:
-                # When we only have text input, add enhanced prompt
-                # Get dimensions string from target_size
+
                 dimensions = f"{target_size[0]}x{target_size[1]}"
                 aspect_ratio = "1:1" if target_size[0] == target_size[1] else f"{target_size[0]}:{target_size[1]}"
                 
@@ -3297,14 +3276,12 @@ class ComflyGeminiAPI:
                     enhanced_prompt = f"Generate {num_images} DIFFERENT high-quality images with VARIED content, each with unique and distinct visual elements, all having the exact same dimensions of {dimensions} and aspect ratio {aspect_ratio}. Important: make sure each image has different content but maintains the same technical dimensions. Based on this description: {prompt}"
                 
                 content.append({"type": "text", "text": enhanced_prompt})
-            
-            # Create messages
+
             messages = [{
                 "role": "user",
                 "content": content
             }]
-            
-            # Create API payload
+
             payload = {
                 "model": model,
                 "messages": messages,
@@ -3313,12 +3290,10 @@ class ComflyGeminiAPI:
                 "seed": seed if seed > 0 else None,
                 "max_tokens": 8192
             }
-            
-            # Make API request with progress bar
+
             pbar = comfy.utils.ProgressBar(100)
             pbar.update_absolute(10)
-            
-            # Make API request with timeout
+
             try:
                 response = requests.post(
                     "https://ai.comfly.chat/v1/chat/completions",
@@ -3334,67 +3309,55 @@ class ComflyGeminiAPI:
                 raise Exception(f"API request failed: {str(e)}")
             
             pbar.update_absolute(40)
-            
-            # Extract response text
+
             response_text = result["choices"][0]["message"]["content"]
-            
-            # Format the response
+
             formatted_response = f"**User prompt**: {prompt}\n\n**Response** ({timestamp}):\n{response_text}"
-            
-            # Check if response contains image URLs
+
             image_urls = self.extract_image_urls(response_text)
             
             if image_urls:
                 try:
-                    # Process all images from URLs
                     images = []
-                    first_image_url = ""  # Store the first image URL
+                    first_image_url = ""  
                     
                     for i, url in enumerate(image_urls):
                         pbar.update_absolute(40 + (i+1) * 50 // len(image_urls))
                         
                         if i == 0:
-                            first_image_url = url  # Save the first URL
+                            first_image_url = url  
                         
                         try:
                             img_response = requests.get(url, timeout=self.timeout)
                             img_response.raise_for_status()
                             pil_image = Image.open(BytesIO(img_response.content))
-                            
-                            # Resize the image to the target size if necessary
+
                             resized_image = self.resize_to_target_size(pil_image, target_size)
-                            
-                            # Convert to tensor
+
                             img_tensor = pil2tensor(resized_image)
                             images.append(img_tensor)
                             
                         except Exception as img_error:
                             print(f"Error processing image URL {i+1}: {str(img_error)}")
-                            # Continue to next image if there's an error with this one
                             continue
                     
                     if images:
-                        # If all images are the same size, we can use torch.cat
                         try:
                             combined_tensor = torch.cat(images, dim=0)
                         except RuntimeError:
-                            # If images are different sizes, we'll need to handle them individually
                             print("Warning: Images have different sizes, returning first image")
                             combined_tensor = images[0] if images else None
                             
                         pbar.update_absolute(100)
                         return (combined_tensor, formatted_response, first_image_url)
                     else:
-                        # If no images were successfully processed
                         raise Exception("No images could be processed successfully")
                     
                 except Exception as e:
                     print(f"Error processing image URLs: {str(e)}")
-            
-            # Return appropriate response if no image URLs were found
+
             pbar.update_absolute(100)
-            
-            # Determine which image to return in case of no output images
+
             reference_image = None
             if object_image is not None:
                 reference_image = object_image
@@ -3404,10 +3367,8 @@ class ComflyGeminiAPI:
                 reference_image = scene_image
                 
             if reference_image is not None:
-                # If any input image was provided, return the first available one with the text response
                 return (reference_image, formatted_response, "")
             else:
-                # Create a default blank image with the target size
                 default_image = Image.new('RGB', target_size, color='white')
                 default_tensor = pil2tensor(default_image)
                 return (default_tensor, formatted_response, "")
@@ -3424,7 +3385,6 @@ class ComflyGeminiAPI:
     
     def handle_error(self, object_image, subject_image, scene_image, error_message, resolution="1024x1024"):
         """Handle errors with appropriate image output"""
-        # Return the first available image if any
         if object_image is not None:
             return (object_image, error_message, "")
         elif subject_image is not None:
@@ -3432,10 +3392,8 @@ class ComflyGeminiAPI:
         elif scene_image is not None:
             return (scene_image, error_message, "")
         else:
-            # Create an error image with the specified resolution
-            # Handle custom resolution options
             if resolution in ["object_image size", "subject_image size", "scene_image size"]:
-                target_size = (1024, 1024)  # Default if custom option selected but no image provided
+                target_size = (1024, 1024)  
             else:
                 target_size = self.parse_resolution(resolution)
                 
@@ -3886,8 +3844,7 @@ class ComflyJimengApi:
                 blank_image = Image.new('RGB', (width, height), color='white')
                 blank_tensor = pil2tensor(blank_image)
                 return (blank_tensor, error_message, "")
-                
-            # Initialize progress bar
+
             pbar = comfy.utils.ProgressBar(100)
             pbar.update_absolute(10)
 
@@ -3903,8 +3860,7 @@ class ComflyJimengApi:
                     print("Image upload failed, proceeding without image")
 
             final_image_url = uploaded_image_url if uploaded_image_url else image_url
-            
-            # Modified prompt if using image
+
             model_name = "seedream-3.0"  
             
             position_value = self.get_logo_position_value(logo_position)
@@ -6402,6 +6358,190 @@ class Comfly_qwen_image:
             return (blank_tensor, error_message, "")
 
 
+class Comfly_qwen_image_edit:
+    
+    """
+    A node that edits images using Qwen AI service
+    """
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "image": ("IMAGE",),
+                "size": (["512x512", "1024x1024", "768x1024", "576x1024", "1024x768", "1024x576", "Custom"], {"default": "1024x768"}),
+                "Custom_size": ("STRING", {"default": "Enter custom size (e.g. 1280x720)", "multiline": False}),
+                "model": (["qwen-image-edit"], {"default": "qwen-image-edit"}),
+            },
+            "optional": {
+                "apikey": ("STRING", {"default": ""}),
+                "num_inference_steps": ("INT", {"default": 30, "min": 2, "max": 50, "step": 1}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                "guidance_scale": ("FLOAT", {"default": 4.0, "min": 0, "max": 20, "step": 0.5}),
+                "enable_safety_checker": ("BOOLEAN", {"default": True}),
+                "negative_prompt": ("STRING", {"default": "", "multiline": True}),
+                "output_format": (["jpeg", "png"], {"default": "png"}),
+                "num_images": ("INT", {"default": 1, "min": 1, "max": 4}),
+                "acceleration": (["none", "regular", "high"], {"default": "none"}),
+            }
+        }
+    
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING")
+    RETURN_NAMES = ("image", "response", "image_url")
+    FUNCTION = "edit_image"
+    CATEGORY = "Comfly/Qwen"
+       
+    def __init__(self):
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 300
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+ 
+    def edit_image(self, prompt, image, size, Custom_size, model,
+                  apikey="", num_inference_steps=30, seed=0, guidance_scale=4.0, 
+                  enable_safety_checker=True, negative_prompt="", output_format="png",
+                  num_images=1, acceleration="none"):
+        if apikey.strip():
+            self.api_key = apikey
+            config = get_config()
+            config['api_key'] = apikey
+            save_config(config)
+            
+        try:
+            if not self.api_key:
+                error_message = "API key not found in Comflyapi.json"
+                print(error_message)
+                return (image, error_message, "")
+                
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(10)
+            
+            actual_size = Custom_size if size == "Custom" else size
+
+            if size == "Custom" and (Custom_size == "Enter custom size (e.g. 1280x720)" or "x" not in Custom_size):
+                error_message = "Please enter a valid custom size in the format 'widthxheight' (e.g. 1280x720)"
+                print(error_message)
+                return (image, error_message, "")
+
+            pil_image = tensor2pil(image)[0]
+
+            buffered = BytesIO()
+            pil_image.save(buffered, format="PNG")
+            buffered.seek(0) 
+
+            files = {
+                'image': ('image.png', buffered, 'image/png')
+            }
+            
+            data = {
+                "prompt": prompt,
+                "size": actual_size,  
+                "model": model,
+                "n": str(num_images),
+            }
+
+            if num_inference_steps != 30:
+                data["num_inference_steps"] = str(num_inference_steps)
+                
+            if seed != 0:
+                data["seed"] = str(seed)
+                
+            if guidance_scale != 4.0:
+                data["guidance_scale"] = str(guidance_scale)
+                
+            if not enable_safety_checker:
+                data["enable_safety_checker"] = str(enable_safety_checker).lower()
+                
+            if negative_prompt.strip():
+                data["negative_prompt"] = negative_prompt
+                
+            if output_format != "png":
+                data["output_format"] = output_format
+                
+            if acceleration != "none":
+                data["acceleration"] = acceleration
+            
+            pbar.update_absolute(30)
+
+            headers = {"Authorization": f"Bearer {self.api_key}"}
+            
+            response = requests.post(
+                "https://ai.comfly.chat/v1/images/edits", 
+                headers=headers,
+                files=files,
+                data=data,
+                timeout=self.timeout
+            )
+            
+            pbar.update_absolute(50)
+            
+            if response.status_code != 200:
+                error_message = f"API Error: {response.status_code} - {response.text}"
+                print(error_message)
+                return (image, error_message, "")
+                
+            result = response.json()
+
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            response_info = f"**Qwen Image Edit ({timestamp})**\n\n"
+            response_info += f"Prompt: {prompt}\n"
+            response_info += f"Model: {model}\n"
+            response_info += f"Size: {actual_size}\n"
+            response_info += f"Number of Images: {num_images}\n"
+            response_info += f"Acceleration: {acceleration}\n"
+            response_info += f"Seed: {seed}\n\n"
+            
+            edited_images = []
+            image_urls = []
+            
+            if "data" in result and result["data"]:
+                for i, item in enumerate(result["data"]):
+                    pbar.update_absolute(50 + (i+1) * 40 // len(result["data"]))
+                    
+                    if "b64_json" in item:
+                        image_data = base64.b64decode(item["b64_json"])
+                        edited_image = Image.open(BytesIO(image_data))
+                        edited_tensor = pil2tensor(edited_image)
+                        edited_images.append(edited_tensor)
+                    elif "url" in item:
+                        image_url = item["url"]
+                        image_urls.append(image_url)
+                        try:
+                            img_response = requests.get(image_url, timeout=self.timeout)
+                            img_response.raise_for_status()
+                            edited_image = Image.open(BytesIO(img_response.content))
+                            edited_tensor = pil2tensor(edited_image)
+                            edited_images.append(edited_tensor)
+                        except Exception as e:
+                            print(f"Error downloading image from URL: {str(e)}")
+            else:
+                error_message = "No edited images in response"
+                print(error_message)
+                response_info += f"Error: {error_message}\n"
+                return (image, response_info, "")
+                
+            if edited_images:
+                combined_tensor = torch.cat(edited_images, dim=0)
+                
+                pbar.update_absolute(100)
+                return (combined_tensor, response_info, image_urls[0] if image_urls else "")
+            else:
+                error_message = "No images were successfully processed"
+                print(error_message)
+                response_info += f"Error: {error_message}\n"
+                return (image, response_info, "")
+                
+        except Exception as e:
+            error_message = f"Error in image editing: {str(e)}"
+            print(error_message)
+            return (image, error_message, "")
+
+
 WEB_DIRECTORY = "./web"    
         
 NODE_CLASS_MAPPINGS = {
@@ -6409,8 +6549,9 @@ NODE_CLASS_MAPPINGS = {
     "Comfly_mjstyle": Comfly_mjstyle,
     "Comfly_upload": Comfly_upload,
     "Comfly_Mju": Comfly_Mju,
-    "Comfly_Mjv": Comfly_Mjv, 
-    "Comfly_Mj_swap_face": Comfly_Mj_swap_face, 
+    "Comfly_Mjv": Comfly_Mjv,  
+    "Comfly_Mj_swap_face": Comfly_Mj_swap_face,
+    "Comfly_Mj_Edit": Comfly_Mj_Edit,
     "Comfly_kling_text2video": Comfly_kling_text2video,
     "Comfly_kling_image2video": Comfly_kling_image2video,
     "Comfly_kling_multi_image2video": Comfly_kling_multi_image2video,
@@ -6427,9 +6568,11 @@ NODE_CLASS_MAPPINGS = {
     "Comfly_Flux_Kontext_Edit": Comfly_Flux_Kontext_Edit,
     "Comfly_Flux_Kontext_bfl": Comfly_Flux_Kontext_bfl,
     "Comfly_Googel_Veo3": Comfly_Googel_Veo3,
-    "Comfly_mj_video": Comfly_mj_video, 
-    "Comfly_mj_video_extend": Comfly_mj_video_extend,  
+    "Comfly_mj_video": Comfly_mj_video,
+    "Comfly_mj_video_extend": Comfly_mj_video_extend,
+    "Comfly_MiniMax_video": Comfly_MiniMax_video,
     "Comfly_qwen_image": Comfly_qwen_image,
+    "Comfly_qwen_image_edit": Comfly_qwen_image_edit, 
     "Comfly_Doubao_Seedream": Comfly_Doubao_Seedream,
     "Comfly_Doubao_Seededit": Comfly_Doubao_Seededit
 }
@@ -6441,13 +6584,14 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_Mju": "Comfly_Mju",
     "Comfly_Mjv": "Comfly_Mjv",  
     "Comfly_Mj_swap_face": "Comfly MJ Face Swap",
+    "Comfly_Mj_Edit": "Comfly MJ Edit",
     "Comfly_kling_text2video": "Comfly_kling_text2video",
     "Comfly_kling_image2video": "Comfly_kling_image2video",
     "Comfly_kling_multi_image2video": "Comfly_kling_multi_image2video",
     "Comfly_video_extend": "Comfly_video_extend",
     "Comfly_lip_sync": "Comfly_lip_sync",
     "ComflyGeminiAPI": "Comfly Gemini API",
-    "ComflySeededit": "Comfly Doubao SeedEdit",
+    "ComflySeededit": "Comfly Doubao SeedEdit2.0",
     "ComflyChatGPTApi": "Comfly ChatGPT Api",
     "ComflyJimengApi": "Comfly Jimeng API", 
     "Comfly_gpt_image_1_edit": "Comfly_gpt_image_1_edit",
@@ -6457,9 +6601,11 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_Flux_Kontext_Edit": "Comfly_Flux_Kontext_Edit",
     "Comfly_Flux_Kontext_bfl": "Comfly_Flux_Kontext_bfl",
     "Comfly_Googel_Veo3": "Comfly Google Veo3",
-    "Comfly_mj_video": "Comfly mj video",
+    "Comfly_mj_video": "Comfly MJ Video",
     "Comfly_mj_video_extend": "Comfly MJ Video Extend",
+    "Comfly_MiniMax_video": "Comfly MiniMax Hailuo Video",
     "Comfly_qwen_image": "Comfly_qwen_image",
-    "Comfly_Doubao_Seedream": "Comfly Doubao Seedream",
-    "Comfly_Doubao_Seededit": "Comfly Doubao Seededit"
+    "Comfly_qwen_image_edit": "Comfly_qwen_image_edit",
+    "Comfly_Doubao_Seedream": "Comfly Doubao Seedream3.0",
+    "Comfly_Doubao_Seededit": "Comfly Doubao Seededit3.0"
 }

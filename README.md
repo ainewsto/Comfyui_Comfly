@@ -27,6 +27,13 @@
 
 # 更新 Update：
 
+20250819：
+
+`qwen image_edit节点`: 新增千问图片编辑节点：Comfly_qwen_image_edit，价格0.1.
+可以自定义尺寸（size选择Custom后，在Custom_size输入分辨率即可，例如1280x720）。
+num_images生成图片数量是1到4张，注意api计算是按照图片张数来的，生成越多，api消费就多。
+
+
 20250814：
 
 `doubao节点`: 新增节点：Comfly_Doubao_Seedream和Comfly_Doubao_Seededit都是3.0模型
