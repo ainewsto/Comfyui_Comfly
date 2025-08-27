@@ -6189,6 +6189,8 @@ class Comfly_nano_banana:
             },
             "optional": {
                 "images": ("IMAGE",),
+                "temperature": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.05}),
+                "top_p": ("FLOAT", {"default": 0.95, "min": 0.0, "max": 1.0, "step": 0.05}),
                 "apikey": ("STRING", {"default": ""}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
                 "max_tokens": ("INT", {"default": 32768, "min": 1, "max": 32768})
@@ -6260,7 +6262,8 @@ class Comfly_nano_banana:
         except Exception as e:
             raise Exception(f"Error in streaming response: {str(e)}")
 
-    def process(self, text, model="gemini-2.5-flash-image-preview", images=None, apikey="", seed=0, max_tokens=32768):
+    def process(self, text, model="gemini-2.5-flash-image-preview", images=None, 
+                temperature=1.0, top_p=0.95, apikey="", seed=0, max_tokens=32768):
         if apikey.strip():
             self.api_key = apikey
             config = get_config()
@@ -6303,8 +6306,8 @@ class Comfly_nano_banana:
             payload = {
                 "model": model,
                 "messages": messages,
-                "temperature": 0.5,
-                "top_p": 1,
+                "temperature": temperature,
+                "top_p": top_p,
                 "max_tokens": max_tokens,
                 "stream": True 
             }
