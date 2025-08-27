@@ -6188,7 +6188,10 @@ class Comfly_nano_banana:
                 "model": ("STRING", {"default": "gemini-2.5-flash-image-preview"}),
             },
             "optional": {
-                "images": ("IMAGE",),
+                "image1": ("IMAGE",),
+                "image2": ("IMAGE",),
+                "image3": ("IMAGE",),
+                "image4": ("IMAGE",),
                 "temperature": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.05}),
                 "top_p": ("FLOAT", {"default": 0.95, "min": 0.0, "max": 1.0, "step": 0.05}),
                 "apikey": ("STRING", {"default": ""}),
@@ -6197,8 +6200,8 @@ class Comfly_nano_banana:
             }
         }
 
-    RETURN_TYPES = ("IMAGE", "STRING")
-    RETURN_NAMES = ("image", "response")
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING")
+    RETURN_NAMES = ("image", "response", "image_url")
     FUNCTION = "process"
     CATEGORY = "Comfly/Google"
 
@@ -6262,7 +6265,8 @@ class Comfly_nano_banana:
         except Exception as e:
             raise Exception(f"Error in streaming response: {str(e)}")
 
-    def process(self, text, model="gemini-2.5-flash-image-preview", images=None, 
+    def process(self, text, model="gemini-2.5-flash-image-preview", 
+                image1=None, image2=None, image3=None, image4=None,
                 temperature=1.0, top_p=0.95, apikey="", seed=0, max_tokens=32768):
         if apikey.strip():
             self.api_key = apikey
@@ -6270,33 +6274,42 @@ class Comfly_nano_banana:
             config['api_key'] = apikey
             save_config(config)
 
-        blank_image = Image.new('RGB', (512, 512), color='white')
-        default_image = pil2tensor(blank_image)
-        
-        if images is not None:
-            default_image = images
+        default_image = None
+        for img in [image1, image2, image3, image4]:
+            if img is not None:
+                default_image = img
+                break
+
+        if default_image is None:
+            blank_image = Image.new('RGB', (512, 512), color='white')
+            default_image = pil2tensor(blank_image)
 
         try:
             if not self.api_key:
-                return (default_image, "API key not provided. Please set your API key.")
+                return (default_image, "API key not provided. Please set your API key.", "")
 
             pbar = comfy.utils.ProgressBar(100)
             pbar.update_absolute(10)
 
             content = [{"type": "text", "text": text}]
 
-            if images is not None:
-                batch_size = images.shape[0]
-                print(f"Processing {batch_size} input images")
-                
-                for i in range(batch_size):
-                    single_image = images[i:i+1]
-                    image_base64 = self.image_to_base64(single_image)
-                    if image_base64:
-                        content.append({
-                            "type": "image_url", 
-                            "image_url": {"url": f"data:image/png;base64,{image_base64}"}
-                        })
+            images_added = 0
+            for idx, img in enumerate([image1, image2, image3, image4], 1):
+                if img is not None:
+                    batch_size = img.shape[0]
+                    print(f"Processing image{idx} with {batch_size} batch size")
+                    
+                    for i in range(batch_size):
+                        single_image = img[i:i+1]
+                        image_base64 = self.image_to_base64(single_image)
+                        if image_base64:
+                            content.append({
+                                "type": "image_url", 
+                                "image_url": {"url": f"data:image/png;base64,{image_base64}"}
+                            })
+                            images_added += 1
+
+            print(f"Total of {images_added} images added to the request")
 
             messages = [{
                 "role": "user",
@@ -6323,7 +6336,7 @@ class Comfly_nano_banana:
             except Exception as e:
                 error_message = f"API Error: {str(e)}"
                 print(error_message)
-                return (default_image, error_message)
+                return (default_image, error_message, "")
 
             base64_pattern = r'data:image\/[^;]+;base64,([A-Za-z0-9+/=]+)'
             base64_matches = re.findall(base64_pattern, response_text)
@@ -6335,7 +6348,7 @@ class Comfly_nano_banana:
                     generated_tensor = pil2tensor(generated_image)
                     
                     pbar.update_absolute(100)
-                    return (generated_tensor, response_text)
+                    return (generated_tensor, response_text, f"data:image/png;base64,{base64_matches[0]}")
                 except Exception as e:
                     print(f"Error processing base64 image data: {str(e)}")
 
@@ -6346,27 +6359,32 @@ class Comfly_nano_banana:
                 url_pattern = r'https?://\S+\.(?:jpg|jpeg|png|gif|webp)'
                 matches = re.findall(url_pattern, response_text)
             
+            if not matches:
+                all_urls_pattern = r'https?://\S+'
+                matches = re.findall(all_urls_pattern, response_text)
+                
             if matches:
+                image_url = matches[0]
                 try:
-                    img_response = requests.get(matches[0], timeout=self.timeout)
+                    img_response = requests.get(image_url, timeout=self.timeout)
                     img_response.raise_for_status()
                     
                     generated_image = Image.open(BytesIO(img_response.content))
                     generated_tensor = pil2tensor(generated_image)
                     
                     pbar.update_absolute(100)
-                    return (generated_tensor, response_text)
+                    return (generated_tensor, response_text, image_url)
                 except Exception as e:
                     print(f"Error downloading image: {str(e)}")
-                    return (default_image, f"{response_text}\n\nError downloading image: {str(e)}")
+                    return (default_image, f"{response_text}\n\nError downloading image: {str(e)}", image_url)
             else:
                 pbar.update_absolute(100)
-                return (default_image, response_text)
+                return (default_image, response_text, "")
                 
         except Exception as e:
             error_message = f"Error processing request: {str(e)}"
             print(error_message)
-            return (default_image, error_message)
+            return (default_image, error_message, "")
 
 
 
@@ -6797,3 +6815,4 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_Doubao_Seededit": "Comfly Doubao Seededit3.0",
     "Comfly_nano_banana": "Comfly_nano_banana"
 }
+
