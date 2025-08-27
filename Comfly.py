@@ -6188,7 +6188,7 @@ class Comfly_nano_banana:
                 "model": ("STRING", {"default": "gemini-2.5-flash-image-preview"}),
             },
             "optional": {
-                "image": ("IMAGE",),
+                "images": ("IMAGE",),
                 "apikey": ("STRING", {"default": ""}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
                 "max_tokens": ("INT", {"default": 32768, "min": 1, "max": 32768})
@@ -6260,18 +6260,18 @@ class Comfly_nano_banana:
         except Exception as e:
             raise Exception(f"Error in streaming response: {str(e)}")
 
-    def process(self, text, model="gemini-2.5-flash-image-preview", image=None, apikey="", seed=0, max_tokens=32768):
+    def process(self, text, model="gemini-2.5-flash-image-preview", images=None, apikey="", seed=0, max_tokens=32768):
         if apikey.strip():
             self.api_key = apikey
             config = get_config()
             config['api_key'] = apikey
             save_config(config)
 
-        if image is None:
-            blank_image = Image.new('RGB', (512, 512), color='white')
-            default_image = pil2tensor(blank_image)
-        else:
-            default_image = image
+        blank_image = Image.new('RGB', (512, 512), color='white')
+        default_image = pil2tensor(blank_image)
+        
+        if images is not None:
+            default_image = images
 
         try:
             if not self.api_key:
@@ -6282,13 +6282,18 @@ class Comfly_nano_banana:
 
             content = [{"type": "text", "text": text}]
 
-            if image is not None:
-                image_base64 = self.image_to_base64(image)
-                if image_base64:
-                    content.append({
-                        "type": "image_url", 
-                        "image_url": {"url": f"data:image/png;base64,{image_base64}"}
-                    })
+            if images is not None:
+                batch_size = images.shape[0]
+                print(f"Processing {batch_size} input images")
+                
+                for i in range(batch_size):
+                    single_image = images[i:i+1]
+                    image_base64 = self.image_to_base64(single_image)
+                    if image_base64:
+                        content.append({
+                            "type": "image_url", 
+                            "image_url": {"url": f"data:image/png;base64,{image_base64}"}
+                        })
 
             messages = [{
                 "role": "user",
@@ -6330,7 +6335,7 @@ class Comfly_nano_banana:
                     return (generated_tensor, response_text)
                 except Exception as e:
                     print(f"Error processing base64 image data: {str(e)}")
- 
+
             image_pattern = r'!\[.*?\]\((.*?)\)'
             matches = re.findall(image_pattern, response_text)
             

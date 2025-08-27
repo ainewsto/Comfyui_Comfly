@@ -29,7 +29,8 @@
 
 20250827：
 
-`Comfly_nano_banana节点`: 新增节点：Comfly_nano_banana（文生图，图生图），谷歌最强编辑模型：gemini-2.5-flash-image-preview，
+`Comfly_nano_banana节点`: 新增节点：Comfly_nano_banana（文生图，图生图，支持多图参考编辑）
+谷歌最强编辑模型：gemini-2.5-flash-image-preview，
 有默认和gemini优质两个分组。价格比官方便宜很多。可以在cherrystudio里面的newapi供应商填写我的api中转站调用模型使用。
 
 
