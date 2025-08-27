@@ -6184,11 +6184,11 @@ class Comfly_nano_banana:
     def INPUT_TYPES(cls):
         return {
             "required": {
-                "image": ("IMAGE",),
                 "text": ("STRING", {"multiline": True}),
                 "model": ("STRING", {"default": "gemini-2.5-flash-image-preview"}),
             },
             "optional": {
+                "image": ("IMAGE",),
                 "apikey": ("STRING", {"default": ""}),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
                 "max_tokens": ("INT", {"default": 32768, "min": 1, "max": 32768})
@@ -6260,31 +6260,35 @@ class Comfly_nano_banana:
         except Exception as e:
             raise Exception(f"Error in streaming response: {str(e)}")
 
-    def process(self, image, text, model="gemini-2.5-flash-image-preview", apikey="", seed=0, max_tokens=32768):
+    def process(self, text, model="gemini-2.5-flash-image-preview", image=None, apikey="", seed=0, max_tokens=32768):
         if apikey.strip():
             self.api_key = apikey
             config = get_config()
             config['api_key'] = apikey
             save_config(config)
 
+        if image is None:
+            blank_image = Image.new('RGB', (512, 512), color='white')
+            default_image = pil2tensor(blank_image)
+        else:
+            default_image = image
+
         try:
             if not self.api_key:
-                return (image, "API key not provided. Please set your API key.")
+                return (default_image, "API key not provided. Please set your API key.")
 
             pbar = comfy.utils.ProgressBar(100)
             pbar.update_absolute(10)
 
-            image_base64 = self.image_to_base64(image)
-            if not image_base64:
-                return (image, "Error: Failed to convert image to base64 format")
+            content = [{"type": "text", "text": text}]
 
-            content = [
-                {"type": "text", "text": text},
-                {
-                    "type": "image_url", 
-                    "image_url": {"url": f"data:image/png;base64,{image_base64}"}
-                }
-            ]
+            if image is not None:
+                image_base64 = self.image_to_base64(image)
+                if image_base64:
+                    content.append({
+                        "type": "image_url", 
+                        "image_url": {"url": f"data:image/png;base64,{image_base64}"}
+                    })
 
             messages = [{
                 "role": "user",
@@ -6311,7 +6315,7 @@ class Comfly_nano_banana:
             except Exception as e:
                 error_message = f"API Error: {str(e)}"
                 print(error_message)
-                return (image, error_message)
+                return (default_image, error_message)
 
             base64_pattern = r'data:image\/[^;]+;base64,([A-Za-z0-9+/=]+)'
             base64_matches = re.findall(base64_pattern, response_text)
@@ -6326,7 +6330,7 @@ class Comfly_nano_banana:
                     return (generated_tensor, response_text)
                 except Exception as e:
                     print(f"Error processing base64 image data: {str(e)}")
-
+ 
             image_pattern = r'!\[.*?\]\((.*?)\)'
             matches = re.findall(image_pattern, response_text)
             
@@ -6346,15 +6350,15 @@ class Comfly_nano_banana:
                     return (generated_tensor, response_text)
                 except Exception as e:
                     print(f"Error downloading image: {str(e)}")
-                    return (image, f"{response_text}\n\nError downloading image: {str(e)}")
+                    return (default_image, f"{response_text}\n\nError downloading image: {str(e)}")
             else:
                 pbar.update_absolute(100)
-                return (image, response_text)
+                return (default_image, response_text)
                 
         except Exception as e:
             error_message = f"Error processing request: {str(e)}"
             print(error_message)
-            return (image, error_message)
+            return (default_image, error_message)
 
 
 
