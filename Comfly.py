@@ -6179,6 +6179,184 @@ class Comfly_Googel_Veo3:
             return ("", "", json.dumps({"code": "error", "message": error_message}))
     
 
+class Comfly_nano_banana:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "image": ("IMAGE",),
+                "text": ("STRING", {"multiline": True}),
+                "model": ("STRING", {"default": "gemini-2.5-flash-image-preview"}),
+            },
+            "optional": {
+                "apikey": ("STRING", {"default": ""}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
+                "max_tokens": ("INT", {"default": 32768, "min": 1, "max": 32768})
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("image", "response")
+    FUNCTION = "process"
+    CATEGORY = "Comfly/Google"
+
+    def __init__(self):
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 300
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+
+    def image_to_base64(self, image_tensor):
+        """Convert tensor to base64 string with data URI prefix"""
+        if image_tensor is None:
+            return None
+            
+        pil_image = tensor2pil(image_tensor)[0]
+        buffered = BytesIO()
+        pil_image.save(buffered, format="PNG")
+        base64_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+        return base64_str
+
+    def send_request_streaming(self, payload):
+        """Send a streaming request to the API"""
+        full_response = ""
+        session = requests.Session()
+        
+        try:
+            response = session.post(
+                "https://ai.comfly.chat/v1/chat/completions",
+                headers=self.get_headers(),
+                json=payload, 
+                stream=True,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+
+            for line in response.iter_lines():
+                if line:
+                    line_text = line.decode('utf-8').strip()
+                    if line_text.startswith('data: '):
+                        data = line_text[6:]  
+                        if data == '[DONE]':
+                            break
+                        try:
+                            chunk = json.loads(data)
+                            if 'choices' in chunk and chunk['choices']:
+                                delta = chunk['choices'][0].get('delta', {})
+                                if 'content' in delta:
+                                    content = delta['content']
+                                    full_response += content
+                        except json.JSONDecodeError:
+                            continue
+            
+            return full_response
+            
+        except requests.exceptions.Timeout:
+            raise TimeoutError(f"API request timed out after {self.timeout} seconds")
+        except Exception as e:
+            raise Exception(f"Error in streaming response: {str(e)}")
+
+    def process(self, image, text, model="gemini-2.5-flash-image-preview", apikey="", seed=0, max_tokens=32768):
+        if apikey.strip():
+            self.api_key = apikey
+            config = get_config()
+            config['api_key'] = apikey
+            save_config(config)
+
+        try:
+            if not self.api_key:
+                return (image, "API key not provided. Please set your API key.")
+
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(10)
+
+            image_base64 = self.image_to_base64(image)
+            if not image_base64:
+                return (image, "Error: Failed to convert image to base64 format")
+
+            content = [
+                {"type": "text", "text": text},
+                {
+                    "type": "image_url", 
+                    "image_url": {"url": f"data:image/png;base64,{image_base64}"}
+                }
+            ]
+
+            messages = [{
+                "role": "user",
+                "content": content
+            }]
+
+            payload = {
+                "model": model,
+                "messages": messages,
+                "temperature": 0.5,
+                "top_p": 1,
+                "max_tokens": max_tokens,
+                "stream": True 
+            }
+
+            if seed > 0:
+                payload["seed"] = seed
+
+            pbar.update_absolute(30)
+
+            try:
+                response_text = self.send_request_streaming(payload)
+                pbar.update_absolute(70)
+            except Exception as e:
+                error_message = f"API Error: {str(e)}"
+                print(error_message)
+                return (image, error_message)
+
+            base64_pattern = r'data:image\/[^;]+;base64,([A-Za-z0-9+/=]+)'
+            base64_matches = re.findall(base64_pattern, response_text)
+            
+            if base64_matches:
+                try:
+                    image_data = base64.b64decode(base64_matches[0])
+                    generated_image = Image.open(BytesIO(image_data))
+                    generated_tensor = pil2tensor(generated_image)
+                    
+                    pbar.update_absolute(100)
+                    return (generated_tensor, response_text)
+                except Exception as e:
+                    print(f"Error processing base64 image data: {str(e)}")
+
+            image_pattern = r'!\[.*?\]\((.*?)\)'
+            matches = re.findall(image_pattern, response_text)
+            
+            if not matches:
+                url_pattern = r'https?://\S+\.(?:jpg|jpeg|png|gif|webp)'
+                matches = re.findall(url_pattern, response_text)
+            
+            if matches:
+                try:
+                    img_response = requests.get(matches[0], timeout=self.timeout)
+                    img_response.raise_for_status()
+                    
+                    generated_image = Image.open(BytesIO(img_response.content))
+                    generated_tensor = pil2tensor(generated_image)
+                    
+                    pbar.update_absolute(100)
+                    return (generated_tensor, response_text)
+                except Exception as e:
+                    print(f"Error downloading image: {str(e)}")
+                    return (image, f"{response_text}\n\nError downloading image: {str(e)}")
+            else:
+                pbar.update_absolute(100)
+                return (image, response_text)
+                
+        except Exception as e:
+            error_message = f"Error processing request: {str(e)}"
+            print(error_message)
+            return (image, error_message)
+
+
 
  ############################# Qwen ###########################
 
@@ -6572,7 +6750,8 @@ NODE_CLASS_MAPPINGS = {
     "Comfly_qwen_image": Comfly_qwen_image,
     "Comfly_qwen_image_edit": Comfly_qwen_image_edit, 
     "Comfly_Doubao_Seedream": Comfly_Doubao_Seedream,
-    "Comfly_Doubao_Seededit": Comfly_Doubao_Seededit
+    "Comfly_Doubao_Seededit": Comfly_Doubao_Seededit,
+    "Comfly_nano_banana": Comfly_nano_banana
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -6603,5 +6782,6 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_qwen_image": "Comfly_qwen_image",
     "Comfly_qwen_image_edit": "Comfly_qwen_image_edit",
     "Comfly_Doubao_Seedream": "Comfly Doubao Seedream3.0",
-    "Comfly_Doubao_Seededit": "Comfly Doubao Seededit3.0"
+    "Comfly_Doubao_Seededit": "Comfly Doubao Seededit3.0",
+    "Comfly_nano_banana": "Comfly_nano_banana"
 }

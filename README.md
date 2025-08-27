@@ -27,6 +27,12 @@
 
 # 更新 Update：
 
+20250827：
+
+`Comfly_nano_banana节点`: 新增节点：Comfly_nano_banana，谷歌最强编辑模型：gemini-2.5-flash-image-preview，
+有默认和gemini优质两个分组。价格比官方便宜很多。可以在cherrystudio里面的newapi供应商填写我的api中转站调用模型使用。
+
+
 20250819：
 
 `qwen image_edit节点`: 新增千问图片编辑节点：Comfly_qwen_image_edit，价格0.1.
