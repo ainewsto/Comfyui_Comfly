@@ -6185,7 +6185,7 @@ class Comfly_nano_banana:
         return {
             "required": {
                 "text": ("STRING", {"multiline": True}),
-                "model": (["nano-banana", "gemini-2.5-flash-image-preview"], {"default": "gemini-2.5-flash-image-preview"}),
+                "model": (["nano-banana", "gemini-2.5-flash-image-preview"], {"default": "nano-banana"}),
             },
             "optional": {
                 "image1": ("IMAGE",),
