@@ -6185,7 +6185,7 @@ class Comfly_nano_banana:
         return {
             "required": {
                 "text": ("STRING", {"multiline": True}),
-                "model": ("STRING", {"default": "gemini-2.5-flash-image-preview"}),
+                "model": (["nano-banana", "gemini-2.5-flash-image-preview"], {"default": "gemini-2.5-flash-image-preview"}),
             },
             "optional": {
                 "image1": ("IMAGE",),
@@ -6385,6 +6385,268 @@ class Comfly_nano_banana:
             error_message = f"Error processing request: {str(e)}"
             print(error_message)
             return (default_image, error_message, "")
+
+
+class Comfly_nano_banana_fal:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "model": (["nano-banana", "nano-banana/edit"], {"default": "nano-banana/edit"}),
+                "num_images": ("INT", {"default": 1, "min": 1, "max": 4}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})
+            },
+            "optional": {
+                "image1": ("IMAGE",),
+                "image2": ("IMAGE",),
+                "image3": ("IMAGE",),
+                "image4": ("IMAGE",),
+                "apikey": ("STRING", {"default": ""})
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("image", "response")
+    FUNCTION = "process"
+    CATEGORY = "Comfly/Google"
+
+    def __init__(self):
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 300
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+
+    def image_to_base64(self, image_tensor):
+        """Convert tensor to base64 string with data URI prefix"""
+        if image_tensor is None:
+            return None
+            
+        pil_image = tensor2pil(image_tensor)[0]
+        buffered = BytesIO()
+        pil_image.save(buffered, format="PNG")
+        base64_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+        return f"data:image/png;base64,{base64_str}"
+
+    def upload_image_to_get_url(self, image_tensor):
+        """Upload image to files API and get URL"""
+        if image_tensor is None:
+            return None
+            
+        try:
+            pil_image = tensor2pil(image_tensor)[0]
+            buffered = BytesIO()
+            pil_image.save(buffered, format="PNG")
+            file_content = buffered.getvalue()
+            
+            files = {'file': ('image.png', file_content, 'image/png')}
+            
+            headers = {"Authorization": f"Bearer {self.api_key}"}
+            response = requests.post(
+                "https://ai.comfly.chat/v1/files",
+                headers=headers,
+                files=files,
+                timeout=self.timeout
+            )
+            
+            response.raise_for_status()
+            result = response.json()
+            
+            if 'url' in result:
+                return result['url']
+            else:
+                print(f"Unexpected response from file upload API: {result}")
+                return None
+                
+        except Exception as e:
+            print(f"Error uploading image: {str(e)}")
+            return None
+
+    def process(self, prompt, model, num_images=1, seed=0, 
+                image1=None, image2=None, image3=None, image4=None, apikey=""):
+        if apikey.strip():
+            self.api_key = apikey
+            config = get_config()
+            config['api_key'] = apikey
+            save_config(config)
+
+        default_image = None
+        for img in [image1, image2, image3, image4]:
+            if img is not None:
+                default_image = img
+                break
+                
+        if default_image is None:
+            blank_image = Image.new('RGB', (512, 512), color='white')
+            default_image = pil2tensor(blank_image)
+        
+        try:
+            if not self.api_key:
+                return (default_image, "API key not provided. Please set your API key.")
+
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(10)
+
+            image_urls = []
+
+            if model.endswith("/edit") and any(img is not None for img in [image1, image2, image3, image4]):
+                print("Uploading images to get URLs for edit model...")
+                input_images = [img for img in [image1, image2, image3, image4] if img is not None]
+                total_images = len(input_images)
+                
+                for idx, img in enumerate(input_images):
+                    progress = 10 + int((idx / max(1, total_images)) * 10)
+                    pbar.update_absolute(progress)
+                    
+                    img_url = self.upload_image_to_get_url(img)
+                    if img_url:
+                        image_urls.append(img_url)
+                        print(f"Image {idx+1}/{total_images} uploaded, URL: {img_url}")
+                    else:
+                        print(f"Failed to upload image {idx+1}/{total_images}")
+            else:
+                for idx, img in enumerate([image1, image2, image3, image4]):
+                    if img is not None:
+                        image_base64 = self.image_to_base64(img)
+                        if image_base64:
+                            image_urls.append(image_base64)
+
+            pbar.update_absolute(20)
+            
+            if model.endswith("/edit"):
+                api_endpoint = f"https://ai.comfly.chat/fal-ai/{model}"
+
+                payload = {
+                    "prompt": prompt,
+                    "num_images": num_images
+                }
+                
+                if seed > 0:
+                    payload["seed"] = seed
+
+                if image_urls and len(image_urls) > 0:
+                    payload["image_urls"] = image_urls
+                
+                pbar.update_absolute(30)
+
+                response = requests.post(
+                    api_endpoint,
+                    headers=self.get_headers(),
+                    json=payload,
+                    timeout=self.timeout
+                )
+            else:
+                api_endpoint = f"https://ai.comfly.chat/fal-ai/{model}"
+                
+                payload = {
+                    "prompt": prompt,
+                    "num_images": num_images
+                }
+                
+                if seed > 0:
+                    payload["seed"] = seed
+                    
+                if image_urls:
+                    payload["image_urls"] = image_urls
+                
+                pbar.update_absolute(30)
+
+                response = requests.post(
+                    api_endpoint,
+                    headers=self.get_headers(),
+                    json=payload,
+                    timeout=self.timeout
+                )
+
+            if response.status_code != 200:
+                return (default_image, f"API Error: {response.status_code} - {response.text}")
+                
+            result = response.json()
+ 
+            if "request_id" not in result:
+                return (default_image, "No request_id in response: " + str(result))
+            
+            request_id = result.get("request_id")
+            response_url = result.get("response_url", "")
+ 
+            if "queue.fal.run" in response_url:
+                response_url = response_url.replace("https://queue.fal.run", "https://ai.comfly.chat")
+
+            if not response_url:
+                response_url = f"https://ai.comfly.chat/fal-ai/{model}/requests/{request_id}"
+            
+            pbar.update_absolute(50)
+
+            max_retries = 30
+            retry_count = 0
+            result_data = None 
+            
+            while retry_count < max_retries:
+                retry_count += 1
+                pbar.update_absolute(50 + min(40, retry_count * 40 // max_retries))
+                
+                try:
+                    result_response = requests.get(
+                        response_url,
+                        headers=self.get_headers(),
+                        timeout=self.timeout
+                    )
+                    
+                    if result_response.status_code != 200:
+                        time.sleep(1)
+                        continue
+                        
+                    result_data = result_response.json()
+
+                    if "images" in result_data and result_data["images"]:
+                        break
+
+                    time.sleep(1)
+                    
+                except Exception as e:
+                    print(f"Error fetching result: {str(e)}")
+                    time.sleep(1)
+
+            if result_data is None:
+                return (default_image, "Failed to retrieve results after multiple attempts")
+
+            if "images" not in result_data or not result_data["images"]:
+                return (default_image, "No images in response: " + str(result_data))
+
+            generated_images = []
+            
+            for i, img_data in enumerate(result_data["images"]):
+                if "url" in img_data:
+                    img_url = img_data["url"]
+                    if "queue.fal.run" in img_url:
+                        img_url = img_url.replace("https://queue.fal.run", "https://ai.comfly.chat")
+                    
+                    try:
+                        img_response = requests.get(img_url, timeout=self.timeout)
+                        if img_response.status_code == 200:
+                            generated_image = Image.open(BytesIO(img_response.content))
+                            generated_tensor = pil2tensor(generated_image)
+                            generated_images.append(generated_tensor)
+                    except Exception as e:
+                        print(f"Error downloading image: {str(e)}")
+            
+            if generated_images:
+                combined_tensor = torch.cat(generated_images, dim=0)
+                pbar.update_absolute(100)
+                return (combined_tensor, f"Successfully generated {len(generated_images)} images using {model}")
+            else:
+                return (default_image, "Failed to process any images from the API response")
+                
+        except Exception as e:
+            error_message = f"Error processing request: {str(e)}"
+            print(error_message)
+            import traceback
+            traceback.print_exc()
+            return (default_image, error_message)
 
 
 
@@ -6781,7 +7043,8 @@ NODE_CLASS_MAPPINGS = {
     "Comfly_qwen_image_edit": Comfly_qwen_image_edit, 
     "Comfly_Doubao_Seedream": Comfly_Doubao_Seedream,
     "Comfly_Doubao_Seededit": Comfly_Doubao_Seededit,
-    "Comfly_nano_banana": Comfly_nano_banana
+    "Comfly_nano_banana": Comfly_nano_banana,
+    "Comfly_nano_banana_fal": Comfly_nano_banana_fal
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -6813,6 +7076,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_qwen_image_edit": "Comfly_qwen_image_edit",
     "Comfly_Doubao_Seedream": "Comfly Doubao Seedream3.0",
     "Comfly_Doubao_Seededit": "Comfly Doubao Seededit3.0",
-    "Comfly_nano_banana": "Comfly_nano_banana"
+    "Comfly_nano_banana": "Comfly_nano_banana",
+    "Comfly_nano_banana_fal": "Comfly_nano_banana_fal"
 }
 

@@ -27,6 +27,16 @@
 
 # 更新 Update：
 
+20250828：
+
+目前官方返无图的可能性比较高，所以需要你开魔法，并且节点在美国（我测试这样的情况基本没有问题，有问题加群）
+
+`Comfly_nano_banana_fal节点`: 新增节点Comfly_nano_banana_fal，这个可以生成1到4张图片，nano-banana为文生图模型。
+nano-banana/edit为图生图模型（图生图模型会产生额外的图片上传费用，具体可以看网站日志，在网站异步任务也可查看任务信息）
+
+`Comfly_nano_banana节点`: 新增模型nano-banana选项，这个模型不容易被识别成对话模型，
+
+
 20250827：
 
 `Comfly_nano_banana节点`: 新增节点：Comfly_nano_banana（文生图，图生图，支持多图参考编辑）
