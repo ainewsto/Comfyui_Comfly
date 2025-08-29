@@ -27,6 +27,13 @@
 
 # 更新 Update：
 
+20250829：
+
+`Comfly_MiniMax_video节点`: 新增节点Comfly_MiniMax_video，支持海螺ai全部视频模型，支持最新首尾帧。
+具体模型能力和参数选择请查看官方文档，避免使用错误：
+https://platform.minimaxi.com/document/video_generation?key=66d1439376e52fcee2853049
+
+
 20250828：
 
 目前官方返无图的可能性比较高，所以需要你开魔法，并且节点在美国（我测试这样的情况基本没有问题，有问题加群）
