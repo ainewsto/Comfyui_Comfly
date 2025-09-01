@@ -373,8 +373,6 @@ class Comfly_upload(ComflyBaseNode):
         except asyncio.TimeoutError:
             error_message = f"Timeout error: Request to upload image timed out after {self.timeout} seconds"
             raise Exception(error_message)
-
-
         
     def upload_image(self, image, api_key=""):
         if api_key.strip():
@@ -384,12 +382,43 @@ class Comfly_upload(ComflyBaseNode):
             save_config(config)
             
         try:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            url = loop.run_until_complete(self.upload_image_to_midjourney(image))
-            loop.close()
-            return (url,)
+            pil_image = tensor2pil(image)[0]
+            buffered = BytesIO()
+            pil_image.save(buffered, format="PNG")
+            image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+            payload = {
+                "base64Array": [f"data:image/png;base64,{image_base64}"],
+                "instanceId": "",
+                "notifyHook": ""
+            }
+            
+            response = requests.post(
+                f"{self.midjourney_api_url[self.speed]}/mj/submit/upload-discord-images",
+                headers=self.get_headers(),
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("status") == "FAILURE":
+                    fail_reason = result.get("fail_reason", "Unknown failure reason")
+                    error_message = f"Image upload failed: {fail_reason}"
+                    print(error_message)
+                    raise Exception(error_message)
+                    
+                if "result" in result and result["result"]:
+                    return (result["result"][0],)
+                else:
+                    error_message = f"Unexpected response from Midjourney API: {result}"
+                    raise Exception(error_message)
+            else:
+                error_message = f"Error uploading image to Midjourney: {response.status_code} - {response.text}"
+                raise Exception(error_message)
+                
         except Exception as e:
+            print(f"Error in upload_image: {str(e)}")
             raise e
         
 
@@ -6432,40 +6461,6 @@ class Comfly_nano_banana_fal:
         base64_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
         return f"data:image/png;base64,{base64_str}"
 
-    def upload_image_to_get_url(self, image_tensor):
-        """Upload image to files API and get URL"""
-        if image_tensor is None:
-            return None
-            
-        try:
-            pil_image = tensor2pil(image_tensor)[0]
-            buffered = BytesIO()
-            pil_image.save(buffered, format="PNG")
-            file_content = buffered.getvalue()
-            
-            files = {'file': ('image.png', file_content, 'image/png')}
-            
-            headers = {"Authorization": f"Bearer {self.api_key}"}
-            response = requests.post(
-                "https://ai.comfly.chat/v1/files",
-                headers=headers,
-                files=files,
-                timeout=self.timeout
-            )
-            
-            response.raise_for_status()
-            result = response.json()
-            
-            if 'url' in result:
-                return result['url']
-            else:
-                print(f"Unexpected response from file upload API: {result}")
-                return None
-                
-        except Exception as e:
-            print(f"Error uploading image: {str(e)}")
-            return None
-
     def process(self, prompt, model, num_images=1, seed=0, 
                 image1=None, image2=None, image3=None, image4=None, apikey=""):
         if apikey.strip():
@@ -6493,27 +6488,11 @@ class Comfly_nano_banana_fal:
 
             image_urls = []
 
-            if model.endswith("/edit") and any(img is not None for img in [image1, image2, image3, image4]):
-                print("Uploading images to get URLs for edit model...")
-                input_images = [img for img in [image1, image2, image3, image4] if img is not None]
-                total_images = len(input_images)
-                
-                for idx, img in enumerate(input_images):
-                    progress = 10 + int((idx / max(1, total_images)) * 10)
-                    pbar.update_absolute(progress)
-                    
-                    img_url = self.upload_image_to_get_url(img)
-                    if img_url:
-                        image_urls.append(img_url)
-                        print(f"Image {idx+1}/{total_images} uploaded, URL: {img_url}")
-                    else:
-                        print(f"Failed to upload image {idx+1}/{total_images}")
-            else:
-                for idx, img in enumerate([image1, image2, image3, image4]):
-                    if img is not None:
-                        image_base64 = self.image_to_base64(img)
-                        if image_base64:
-                            image_urls.append(image_base64)
+            for idx, img in enumerate([image1, image2, image3, image4]):
+                if img is not None:
+                    image_base64 = self.image_to_base64(img)
+                    if image_base64:
+                        image_urls.append(image_base64)
 
             pbar.update_absolute(20)
             
