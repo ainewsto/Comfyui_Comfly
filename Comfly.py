@@ -6696,7 +6696,8 @@ class Comfly_nano_banana_edit:
                 "image3": ("IMAGE",),
                 "image4": ("IMAGE",),
                 "apikey": ("STRING", {"default": ""}),
-                "response_format": (["url", "b64_json"], {"default": "url"})
+                "response_format": (["url", "b64_json"], {"default": "url"}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})  
             }
         }
     
@@ -6741,7 +6742,7 @@ class Comfly_nano_banana_edit:
     
     def generate_image(self, prompt, mode="text2img", model="nano-banana", aspect_ratio="1:1", 
                       image1=None, image2=None, image3=None, image4=None,
-                      apikey="", response_format="url"):
+                      apikey="", response_format="url", seed=0):  
         if apikey.strip():
             self.api_key = apikey
             config = get_config()
@@ -6777,6 +6778,9 @@ class Comfly_nano_banana_edit:
                     
                 if response_format:
                     payload["response_format"] = response_format
+
+                if seed > 0:
+                    payload["seed"] = seed
                 
                 response = requests.post(
                     "https://ai.comfly.chat/v1/images/generations",
@@ -6803,6 +6807,9 @@ class Comfly_nano_banana_edit:
                 
                 if response_format:
                     data["response_format"] = response_format
+
+                if seed > 0:
+                    data["seed"] = str(seed)
                 
                 response = requests.post(
                     "https://ai.comfly.chat/v1/images/edits",
@@ -6835,6 +6842,9 @@ class Comfly_nano_banana_edit:
 
             if mode == "text2img" and size:
                 response_info += f"Aspect ratio: {aspect_ratio} (size: {size})\n"
+
+            if seed > 0:
+                response_info += f"Seed: {seed}\n"
             
             for i, item in enumerate(result["data"]):
                 pbar.update_absolute(50 + (i+1) * 40 // len(result["data"]))
@@ -7056,211 +7066,188 @@ class Comfly_qwen_image:
             return (blank_tensor, error_message, "")
 
 
-class Comfly_nano_banana_edit:
+class Comfly_qwen_image_edit:
+    
+    """
+    A node that edits images using Qwen AI service
+    """
+
     @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
-                "mode": (["text2img", "img2img"], {"default": "text2img"}),
-                "model": ("STRING", {"default": "nano-banana"}),
-                "aspect_ratio": (["16:9", "4:3", "3:2", "1:1", "2:3", "3:4", "9:16"], {"default": "1:1"}),
+                "image": ("IMAGE",),
+                "size": (["512x512", "1024x1024", "768x1024", "576x1024", "1024x768", "1024x576", "Custom"], {"default": "1024x768"}),
+                "Custom_size": ("STRING", {"default": "Enter custom size (e.g. 1280x720)", "multiline": False}),
+                "model": (["qwen-image-edit"], {"default": "qwen-image-edit"}),
             },
             "optional": {
-                "image1": ("IMAGE",),
-                "image2": ("IMAGE",),
-                "image3": ("IMAGE",),
-                "image4": ("IMAGE",),
                 "apikey": ("STRING", {"default": ""}),
-                "response_format": (["url", "b64_json"], {"default": "url"}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})  
+                "num_inference_steps": ("INT", {"default": 30, "min": 2, "max": 50, "step": 1}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+                "guidance_scale": ("FLOAT", {"default": 4.0, "min": 0, "max": 20, "step": 0.5}),
+                "enable_safety_checker": ("BOOLEAN", {"default": True}),
+                "negative_prompt": ("STRING", {"default": "", "multiline": True}),
+                "output_format": (["jpeg", "png"], {"default": "png"}),
+                "num_images": ("INT", {"default": 1, "min": 1, "max": 4}),
+                "acceleration": (["none", "regular", "high"], {"default": "none"}),
             }
         }
     
-    RETURN_TYPES = ("IMAGE", "STRING")
-    RETURN_NAMES = ("image", "response")
-    FUNCTION = "generate_image"
-    CATEGORY = "Comfly/Google"
-
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING")
+    RETURN_NAMES = ("image", "response", "image_url")
+    FUNCTION = "edit_image"
+    CATEGORY = "Comfly/Qwen"
+       
     def __init__(self):
         self.api_key = get_config().get('api_key', '')
-        self.timeout = 600
+        self.timeout = 300
 
     def get_headers(self):
         return {
+            "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}"
         }
-    
-    def image_to_base64(self, image_tensor):
-        """Convert tensor to base64 string"""
-        if image_tensor is None:
-            return None
-            
-        pil_image = tensor2pil(image_tensor)[0]
-        buffered = BytesIO()
-        pil_image.save(buffered, format="PNG")
-        return base64.b64encode(buffered.getvalue()).decode('utf-8')
-    
-    def ratio_to_size(self, ratio):
-        """Convert aspect ratio to a size that maintains that ratio"""
-        base_pixels = 1048576 
-
-        width_ratio, height_ratio = map(int, ratio.split(':'))
-
-        scale = math.sqrt(base_pixels / (width_ratio * height_ratio))
-        width = int(width_ratio * scale)
-        height = int(height_ratio * scale)
-
-        width = (width // 8) * 8
-        height = (height // 8) * 8
-        
-        return f"{width}x{height}"
-    
-    def generate_image(self, prompt, mode="text2img", model="nano-banana", aspect_ratio="1:1", 
-                      image1=None, image2=None, image3=None, image4=None,
-                      apikey="", response_format="url", seed=0):  
+ 
+    def edit_image(self, prompt, image, size, Custom_size, model,
+                  apikey="", num_inference_steps=30, seed=0, guidance_scale=4.0, 
+                  enable_safety_checker=True, negative_prompt="", output_format="png",
+                  num_images=1, acceleration="none"):
         if apikey.strip():
             self.api_key = apikey
             config = get_config()
             config['api_key'] = apikey
             save_config(config)
             
-        if not self.api_key:
-            error_message = "API key not found in Comflyapi.json"
-            print(error_message)
-            blank_image = Image.new('RGB', (1024, 1024), color='white')
-            blank_tensor = pil2tensor(blank_image)
-            return (blank_tensor, error_message)
-            
         try:
+            if not self.api_key:
+                error_message = "API key not found in Comflyapi.json"
+                print(error_message)
+                return (image, error_message, "")
+                
             pbar = comfy.utils.ProgressBar(100)
             pbar.update_absolute(10)
-
-            size = None
-            if mode == "text2img":
-                size = self.ratio_to_size(aspect_ratio)
             
-            if mode == "text2img":
-                headers = self.get_headers()
-                headers["Content-Type"] = "application/json"
-                
-                payload = {
-                    "prompt": prompt,
-                    "model": model
-                }
-                
-                if size:
-                    payload["size"] = size
-                    
-                if response_format:
-                    payload["response_format"] = response_format
+            actual_size = Custom_size if size == "Custom" else size
 
-                if seed > 0:
-                    payload["seed"] = seed
-                
-                response = requests.post(
-                    "https://ai.comfly.chat/v1/images/generations",
-                    headers=headers,
-                    json=payload,
-                    timeout=self.timeout
-                )
-            else:
-                headers = self.get_headers()
-                
-                files = []
-                for img in [image1, image2, image3, image4]:
-                    if img is not None:
-                        pil_img = tensor2pil(img)[0]
-                        buffered = BytesIO()
-                        pil_img.save(buffered, format="PNG")
-                        buffered.seek(0)
-                        files.append(('image', ('image.png', buffered, 'image/png')))
-                
-                data = {
-                    "prompt": prompt,
-                    "model": model
-                }
-                
-                if response_format:
-                    data["response_format"] = response_format
+            if size == "Custom" and (Custom_size == "Enter custom size (e.g. 1280x720)" or "x" not in Custom_size):
+                error_message = "Please enter a valid custom size in the format 'widthxheight' (e.g. 1280x720)"
+                print(error_message)
+                return (image, error_message, "")
 
-                if seed > 0:
-                    data["seed"] = str(seed)
+            pil_image = tensor2pil(image)[0]
+
+            buffered = BytesIO()
+            pil_image.save(buffered, format="PNG")
+            buffered.seek(0) 
+
+            files = {
+                'image': ('image.png', buffered, 'image/png')
+            }
+            
+            data = {
+                "prompt": prompt,
+                "size": actual_size,  
+                "model": model,
+                "n": str(num_images),
+            }
+
+            if num_inference_steps != 30:
+                data["num_inference_steps"] = str(num_inference_steps)
                 
-                response = requests.post(
-                    "https://ai.comfly.chat/v1/images/edits",
-                    headers=headers,
-                    data=data,
-                    files=files,
-                    timeout=self.timeout
-                )
+            if seed != 0:
+                data["seed"] = str(seed)
+                
+            if guidance_scale != 4.0:
+                data["guidance_scale"] = str(guidance_scale)
+                
+            if not enable_safety_checker:
+                data["enable_safety_checker"] = str(enable_safety_checker).lower()
+                
+            if negative_prompt.strip():
+                data["negative_prompt"] = negative_prompt
+                
+            if output_format != "png":
+                data["output_format"] = output_format
+                
+            if acceleration != "none":
+                data["acceleration"] = acceleration
+            
+            pbar.update_absolute(30)
+
+            headers = {"Authorization": f"Bearer {self.api_key}"}
+            
+            response = requests.post(
+                "https://ai.comfly.chat/v1/images/edits", 
+                headers=headers,
+                files=files,
+                data=data,
+                timeout=self.timeout
+            )
             
             pbar.update_absolute(50)
             
             if response.status_code != 200:
                 error_message = f"API Error: {response.status_code} - {response.text}"
                 print(error_message)
-                blank_image = Image.new('RGB', (1024, 1024), color='white')
-                blank_tensor = pil2tensor(blank_image)
-                return (blank_tensor, error_message)
+                return (image, error_message, "")
                 
             result = response.json()
-            
-            if "data" not in result or not result["data"]:
-                error_message = "No image data in response"
-                print(error_message)
-                blank_image = Image.new('RGB', (1024, 1024), color='white')
-                blank_tensor = pil2tensor(blank_image)
-                return (blank_tensor, error_message)
-            
-            generated_tensors = []
-            response_info = f"Generated {len(result['data'])} images using {model}\n"
 
-            if mode == "text2img" and size:
-                response_info += f"Aspect ratio: {aspect_ratio} (size: {size})\n"
-
-            if seed > 0:
-                response_info += f"Seed: {seed}\n"
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            response_info = f"**Qwen Image Edit ({timestamp})**\n\n"
+            response_info += f"Prompt: {prompt}\n"
+            response_info += f"Model: {model}\n"
+            response_info += f"Size: {actual_size}\n"
+            response_info += f"Number of Images: {num_images}\n"
+            response_info += f"Acceleration: {acceleration}\n"
+            response_info += f"Seed: {seed}\n\n"
             
-            for i, item in enumerate(result["data"]):
-                pbar.update_absolute(50 + (i+1) * 40 // len(result["data"]))
-                
-                if "b64_json" in item:
-                    image_data = base64.b64decode(item["b64_json"])
-                    generated_image = Image.open(BytesIO(image_data))
-                    generated_tensor = pil2tensor(generated_image)
-                    generated_tensors.append(generated_tensor)
-                    response_info += f"Image {i+1}: Base64 data\n"
-                elif "url" in item:
-                    image_url = item["url"]
-                    response_info += f"Image {i+1}: {image_url}\n"
-                    try:
-                        img_response = requests.get(image_url, timeout=self.timeout)
-                        img_response.raise_for_status()
-                        generated_image = Image.open(BytesIO(img_response.content))
-                        generated_tensor = pil2tensor(generated_image)
-                        generated_tensors.append(generated_tensor)
-                    except Exception as e:
-                        print(f"Error downloading image from URL: {str(e)}")
+            edited_images = []
+            image_urls = []
             
-            pbar.update_absolute(100)
-            
-            if generated_tensors:
-                combined_tensor = torch.cat(generated_tensors, dim=0)
-                return (combined_tensor, response_info)
+            if "data" in result and result["data"]:
+                for i, item in enumerate(result["data"]):
+                    pbar.update_absolute(50 + (i+1) * 40 // len(result["data"]))
+                    
+                    if "b64_json" in item:
+                        image_data = base64.b64decode(item["b64_json"])
+                        edited_image = Image.open(BytesIO(image_data))
+                        edited_tensor = pil2tensor(edited_image)
+                        edited_images.append(edited_tensor)
+                    elif "url" in item:
+                        image_url = item["url"]
+                        image_urls.append(image_url)
+                        try:
+                            img_response = requests.get(image_url, timeout=self.timeout)
+                            img_response.raise_for_status()
+                            edited_image = Image.open(BytesIO(img_response.content))
+                            edited_tensor = pil2tensor(edited_image)
+                            edited_images.append(edited_tensor)
+                        except Exception as e:
+                            print(f"Error downloading image from URL: {str(e)}")
             else:
-                error_message = "Failed to process any images"
+                error_message = "No edited images in response"
                 print(error_message)
-                blank_image = Image.new('RGB', (1024, 1024), color='white')
-                blank_tensor = pil2tensor(blank_image)
-                return (blank_tensor, error_message)
-            
+                response_info += f"Error: {error_message}\n"
+                return (image, response_info, "")
+                
+            if edited_images:
+                combined_tensor = torch.cat(edited_images, dim=0)
+                
+                pbar.update_absolute(100)
+                return (combined_tensor, response_info, image_urls[0] if image_urls else "")
+            else:
+                error_message = "No images were successfully processed"
+                print(error_message)
+                response_info += f"Error: {error_message}\n"
+                return (image, response_info, "")
+                
         except Exception as e:
-            error_message = f"Error in image generation: {str(e)}"
+            error_message = f"Error in image editing: {str(e)}"
             print(error_message)
-            blank_image = Image.new('RGB', (1024, 1024), color='white')
-            blank_tensor = pil2tensor(blank_image)
-            return (blank_tensor, error_message)
+            return (image, error_message, "")
 
 
 
