@@ -27,6 +27,13 @@
 
 # 更新 Update：
 
+
+20250902：
+
+`Comfly_nano_banana_edit节点`: 新增节点Comfly_nano_banana_edit，这个可以选择生成图片的尺寸，模型只能是：nano-banana
+文生图下尺寸才能生效，图生图不生效。
+
+
 20250829：
 
 `Comfly_MiniMax_video节点`: 新增节点Comfly_MiniMax_video，支持海螺ai全部视频模型，支持最新首尾帧。
