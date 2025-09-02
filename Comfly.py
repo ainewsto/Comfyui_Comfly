@@ -6424,7 +6424,8 @@ class Comfly_nano_banana_fal:
                 "prompt": ("STRING", {"multiline": True}),
                 "model": (["nano-banana", "nano-banana/edit"], {"default": "nano-banana/edit"}),
                 "num_images": ("INT", {"default": 1, "min": 1, "max": 4}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
+                "image_way": (["image", "image_url"], {"default": "image_url"})
             },
             "optional": {
                 "image1": ("IMAGE",),
@@ -6461,7 +6462,41 @@ class Comfly_nano_banana_fal:
         base64_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
         return f"data:image/png;base64,{base64_str}"
 
-    def process(self, prompt, model, num_images=1, seed=0, 
+    def upload_image_to_get_url(self, image_tensor):
+        """Upload image to files API and get URL"""
+        if image_tensor is None:
+            return None
+            
+        try:
+            pil_image = tensor2pil(image_tensor)[0]
+            buffered = BytesIO()
+            pil_image.save(buffered, format="PNG")
+            file_content = buffered.getvalue()
+            
+            files = {'file': ('image.png', file_content, 'image/png')}
+            
+            headers = {"Authorization": f"Bearer {self.api_key}"}
+            response = requests.post(
+                "https://ai.comfly.chat/v1/files",
+                headers=headers,
+                files=files,
+                timeout=self.timeout
+            )
+            
+            response.raise_for_status()
+            result = response.json()
+            
+            if 'url' in result:
+                return result['url']
+            else:
+                print(f"Unexpected response from file upload API: {result}")
+                return None
+                
+        except Exception as e:
+            print(f"Error uploading image: {str(e)}")
+            return None
+
+    def process(self, prompt, model, num_images=1, seed=0, image_way="image",
                 image1=None, image2=None, image3=None, image4=None, apikey=""):
         if apikey.strip():
             self.api_key = apikey
@@ -6488,11 +6523,28 @@ class Comfly_nano_banana_fal:
 
             image_urls = []
 
-            for idx, img in enumerate([image1, image2, image3, image4]):
-                if img is not None:
-                    image_base64 = self.image_to_base64(img)
-                    if image_base64:
-                        image_urls.append(image_base64)
+            if image_way == "image":
+                print("Using base64 encoded images")
+                for idx, img in enumerate([image1, image2, image3, image4]):
+                    if img is not None:
+                        image_base64 = self.image_to_base64(img)
+                        if image_base64:
+                            image_urls.append(image_base64)
+            else:  
+                print("Uploading images to get URLs")
+                input_images = [img for img in [image1, image2, image3, image4] if img is not None]
+                total_images = len(input_images)
+                
+                for idx, img in enumerate(input_images):
+                    progress = 10 + int((idx / max(1, total_images)) * 10)
+                    pbar.update_absolute(progress)
+                    
+                    img_url = self.upload_image_to_get_url(img)
+                    if img_url:
+                        image_urls.append(img_url)
+                        print(f"Image {idx+1}/{total_images} uploaded, URL: {img_url}")
+                    else:
+                        print(f"Failed to upload image {idx+1}/{total_images}")
 
             pbar.update_absolute(20)
             
