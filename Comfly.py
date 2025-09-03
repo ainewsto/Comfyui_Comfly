@@ -4594,13 +4594,15 @@ class Comfly_gpt_image_1_edit:
                 "output_format": (["png", "jpeg", "webp"], {"default": "png"}),
                 "max_retries": ("INT", {"default": 5, "min": 1, "max": 10}),
                 "initial_timeout": ("INT", {"default": 900, "min": 60, "max": 1200}),
+                "input_fidelity": (["low", "high"], {"default": "low"}),
+                "partial_images": ([0, 1, 2, 3], {"default": 0}),
             }
         }
 
     RETURN_TYPES = ("IMAGE", "STRING", "STRING")
     RETURN_NAMES = ("edited_image", "response", "chats")
     FUNCTION = "edit_image"
-    CATEGORY = "Comfly/Chatgpt"
+    CATEGORY = "Comfly/Openai"
 
     def __init__(self):
         self.api_key = get_config().get('api_key', '')
@@ -4687,7 +4689,7 @@ class Comfly_gpt_image_1_edit:
     def edit_image(self, image, prompt, model="gpt-image-1", n=1, quality="auto", 
               seed=0, mask=None, api_key="", size="auto", clear_chats=True,
               background="auto", output_compression=100, output_format="png",
-              max_retries=5, initial_timeout=300):
+              max_retries=5, initial_timeout=300, input_fidelity="low", partial_images=0):
         if api_key.strip():
             self.api_key = api_key
             config = get_config()
@@ -4781,6 +4783,12 @@ class Comfly_gpt_image_1_edit:
             if output_format != "png":
                 data['output_format'] = output_format
 
+            if input_fidelity != "low":
+                data['input_fidelity'] = input_fidelity
+                
+            if partial_images > 0:
+                data['partial_images'] = str(partial_images)
+
             pbar.update_absolute(30)
 
             try:
@@ -4846,7 +4854,6 @@ class Comfly_gpt_image_1_edit:
                 elif "url" in item:
                     image_urls.append(item["url"])
                     try:
-                        # Also use retry logic for downloading images
                         for download_attempt in range(1, max_retries + 1):
                             try:
                                 img_response = requests.get(
@@ -4896,6 +4903,12 @@ class Comfly_gpt_image_1_edit:
                 if output_format != "png":
                     response_info += f"Output Format: {output_format}\n"
 
+                if input_fidelity != "low":
+                    response_info += f"Input Fidelity: {input_fidelity}\n"
+                
+                if partial_images > 0:
+                    response_info += f"Partial Images: {partial_images}\n"
+
                 Comfly_gpt_image_1_edit._conversation_history.append({
                     "user": f"Edit image with prompt: {prompt}",
                     "ai": f"Generated edited image with {model}"
@@ -4941,7 +4954,7 @@ class Comfly_gpt_image_1:
     RETURN_TYPES = ("IMAGE", "STRING")
     RETURN_NAMES = ("generated_image", "response")
     FUNCTION = "generate_image"
-    CATEGORY = "Comfly/Chatgpt"
+    CATEGORY = "Comfly/Openai"
 
     def __init__(self):
         self.api_key = get_config().get('api_key', '')
@@ -5113,7 +5126,7 @@ class ComflyChatGPTApi:
     RETURN_TYPES = ("IMAGE", "STRING", "STRING", "STRING")
     RETURN_NAMES = ("images", "response", "image_urls", "chats")
     FUNCTION = "process"
-    CATEGORY = "Comfly/Chatgpt"
+    CATEGORY = "Comfly/Openai"
     
     def __init__(self):
         self.api_key = get_config().get('api_key', '')

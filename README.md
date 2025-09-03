@@ -27,6 +27,10 @@
 
 # 更新 Update：
 
+20250903：
+
+`Comfly_gpt_image_1_edit节点`: 参数新增input fidelity，partial_images参数
+
 
 20250902：
 
