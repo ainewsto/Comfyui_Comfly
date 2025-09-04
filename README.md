@@ -27,6 +27,11 @@
 
 # 更新 Update：
 
+20250904：
+
+`nano_banana节点`: 新增高清模型：nano-banana-hd
+
+
 20250903：
 
 `Comfly_gpt_image_1_edit节点`: 参数新增input fidelity，partial_images参数

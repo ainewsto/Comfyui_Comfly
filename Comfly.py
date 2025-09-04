@@ -6227,7 +6227,7 @@ class Comfly_nano_banana:
         return {
             "required": {
                 "text": ("STRING", {"multiline": True}),
-                "model": (["nano-banana", "gemini-2.5-flash-image-preview"], {"default": "nano-banana"}),
+                "model": (["nano-banana", "nano-banana-hd", "gemini-2.5-flash-image-preview"], {"default": "nano-banana"}),
             },
             "optional": {
                 "image1": ("IMAGE",),
@@ -6700,7 +6700,7 @@ class Comfly_nano_banana_edit:
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
                 "mode": (["text2img", "img2img"], {"default": "text2img"}),
-                "model": ("STRING", {"default": "nano-banana"}),
+                "model": (["nano-banana", "nano-banana-hd"], {"default": "nano-banana"}),
                 "aspect_ratio": (["16:9", "4:3", "3:2", "1:1", "2:3", "3:4", "9:16"], {"default": "1:1"}),
             },
             "optional": {
