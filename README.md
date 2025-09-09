@@ -27,6 +27,11 @@
 
 # 更新 Update：
 
+20250909：
+
+`Comfly_Doubao_Seedream_4节点`: 新增节点："Comfly Doubao Seedream4.0
+
+
 20250904：
 
 `nano_banana节点`: 新增高清模型：nano-banana-hd
