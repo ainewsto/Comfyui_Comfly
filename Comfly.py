@@ -2367,6 +2367,10 @@ class Comfly_kling_image2video:
             "kling-v2-master": {
                 "std": {"5": False, "10": False},
                 "pro": {"5": False, "10": False}
+            },
+            "kling-v2-1": {
+                "std": {"5": False, "10": False},  
+                "pro": {"5": True, "10": True}  
             }
         }
 
@@ -2378,6 +2382,9 @@ class Comfly_kling_image2video:
         
     def check_tail_image_compatibility(self, model_name, mode, duration):
         try:
+            if model_name == "kling-v2-1":
+                return mode == "pro"
+            
             return self.model_compatibility.get(model_name, {}).get(mode, {}).get(duration, False)
         except:
             return False
@@ -2467,13 +2474,12 @@ class Comfly_kling_image2video:
             pbar = comfy.utils.ProgressBar(100)
             pbar.update_absolute(5)  
             response = requests.post(
-                "https://ai.comfly.chat/kling/v1/videos/image2video",
+                "http://104.194.8.112:9088/kling/v1/videos/image2video",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
             )
-            
-            # Log the response status
+
             print(f"Response status: {response.status_code}")
             if response.status_code != 200:
                 error_message = f"Error: {response.status_code} {response.reason} - {response.text}"
@@ -2493,18 +2499,16 @@ class Comfly_kling_image2video:
             while True:
                 time.sleep(2)
                 status_response = requests.get(
-                    f"https://ai.comfly.chat/kling/v1/videos/image2video/{task_id}",
+                    f"http://104.194.8.112:9088/kling/v1/videos/image2video/{task_id}",
                     headers=self.get_headers(),
                     timeout=self.timeout
                 )
                 status_response.raise_for_status()
                 status_result = status_response.json()
                 last_status = status_result["data"]
-                
-                # Update progress based on the returned status
+
                 progress = 0
                 if status_result["data"]["task_status"] == "processing":
-                    # Estimate progress if not provided explicitly
                     progress = status_result["data"].get("progress", 50)
                 elif status_result["data"]["task_status"] == "succeed":
                     progress = 100
@@ -2554,7 +2558,7 @@ class Comfly_kling_image2video:
             "master_left_rotate_zoom": {"type":"rotate","horizontal":0,"vertical":0,"zoom":camera_value,"tilt":0,"pan":camera_value,"roll":0},
         }
         return json.dumps(camera_mappings.get(camera, camera_mappings["none"]))
-
+        
 
 class Comfly_kling_multi_image2video:
     @classmethod
@@ -7810,4 +7814,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_nano_banana_fal": "Comfly_nano_banana_fal",
     "Comfly_nano_banana_edit": "Comfly_nano_banana_edit"
 }
+
 
