@@ -2474,7 +2474,7 @@ class Comfly_kling_image2video:
             pbar = comfy.utils.ProgressBar(100)
             pbar.update_absolute(5)  
             response = requests.post(
-                "http://104.194.8.112:9088/kling/v1/videos/image2video",
+                "https://ai.comfly.chat/kling/v1/videos/image2video",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -2499,7 +2499,7 @@ class Comfly_kling_image2video:
             while True:
                 time.sleep(2)
                 status_response = requests.get(
-                    f"http://104.194.8.112:9088/kling/v1/videos/image2video/{task_id}",
+                    f"https://ai.comfly.chat/kling/v1/videos/image2video/{task_id}",
                     headers=self.get_headers(),
                     timeout=self.timeout
                 )
@@ -3637,7 +3637,11 @@ class Comfly_Doubao_Seedream_4:
             },
             "optional": {
                 "apikey": ("STRING", {"default": ""}),
-                "image": ("IMAGE",),
+                "image1": ("IMAGE",),
+                "image2": ("IMAGE",),
+                "image3": ("IMAGE",),
+                "image4": ("IMAGE",),
+                "image5": ("IMAGE",),
                 "sequential_image_generation": (["disabled", "auto"], {"default": "disabled"}),
                 "max_images": ("INT", {"default": 1, "min": 1, "max": 15, "step": 1}),
                 "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647}),
@@ -3711,7 +3715,7 @@ class Comfly_Doubao_Seedream_4:
         return f"data:image/png;base64,{image_base64}"
     
     def generate_image(self, prompt, model, response_format="url", aspect_ratio="1:1", resolution="1K", 
-                       apikey="", image=None, sequential_image_generation="disabled", 
+                       apikey="", image1=None, image2=None, image3=None, image4=None, image5=None, sequential_image_generation="disabled", 
                        max_images=1, seed=-1, watermark=True, stream=False):
         if apikey.strip():
             self.api_key = apikey
@@ -3752,18 +3756,19 @@ class Comfly_Doubao_Seedream_4:
                 
             if seed != -1:
                 payload["seed"] = seed
-            if image is not None:
-                batch_size = image.shape[0]
-                image_urls = []
-                
-                for i in range(batch_size):
-                    single_image = image[i:i+1]
-                    image_base64 = self.image_to_base64(single_image)
-                    if image_base64:
-                        image_urls.append(image_base64)
-                
-                if image_urls:
-                    payload["image"] = image_urls
+
+            image_urls = []
+            for img in [image1, image2, image3, image4, image5]:
+                if img is not None:
+                    batch_size = img.shape[0]
+                    for i in range(batch_size):
+                        single_image = img[i:i+1]
+                        image_base64 = self.image_to_base64(single_image)
+                        if image_base64:
+                            image_urls.append(image_base64)
+            
+            if image_urls:
+                payload["image"] = image_urls
             
             response = requests.post(
                 "https://ai.comfly.chat/v1/images/generations",
