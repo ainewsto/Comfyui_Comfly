@@ -6300,11 +6300,13 @@ class Comfly_Googel_Veo3:
                 "prompt": ("STRING", {"multiline": True}),
                 "model": (["veo3", "veo3-fast", "veo3-pro", "veo3-fast-frames", "veo3-pro-frames"], {"default": "veo3"}),
                 "enhance_prompt": ("BOOLEAN", {"default": False}),
+                "aspect_ratio": (["16:9", "9:16"], {"default": "16:9"}),
             },
             "optional": {
                 "apikey": ("STRING", {"default": ""}),
                 "image": ("IMAGE",),
                 "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
+                "enable_upsample": ("BOOLEAN", {"default": False}),
             }
         }
     
@@ -6333,7 +6335,7 @@ class Comfly_Googel_Veo3:
         pil_image.save(buffered, format="PNG")
         return base64.b64encode(buffered.getvalue()).decode('utf-8')
     
-    def generate_video(self, prompt, model="veo3", enhance_prompt=False, apikey="", image=None, seed=0):
+    def generate_video(self, prompt, model="veo3", enhance_prompt=False, aspect_ratio="16:9", apikey="", image=None, seed=0, enable_upsample=False):
         if apikey.strip():
             self.api_key = apikey
             config = get_config()
@@ -6358,6 +6360,12 @@ class Comfly_Googel_Veo3:
  
             if seed > 0:
                 payload["seed"] = seed
+
+            if model in ["veo3", "veo3-fast", "veo3-pro"] and aspect_ratio:
+                payload["aspect_ratio"] = aspect_ratio
+
+            if model in ["veo3", "veo3-fast", "veo3-pro"] and enable_upsample:
+                payload["enable_upsample"] = enable_upsample
  
             if is_image_to_video:
                 image_base64 = self.image_to_base64(image)
@@ -6454,6 +6462,8 @@ class Comfly_Googel_Veo3:
                     "prompt": prompt,
                     "model": model,
                     "enhance_prompt": enhance_prompt,
+                    "aspect_ratio": aspect_ratio if model in ["veo3", "veo3-fast", "veo3-pro"] else "default",
+                    "enable_upsample": enable_upsample if model in ["veo3", "veo3-fast", "veo3-pro"] else False,
                     "video_url": video_url
                 }
                 

@@ -27,6 +27,11 @@
 
 # 更新 Update：
 
+20250911：
+
+`Comfly_Googel_Veo3:节点`: Veo 模型大幅降价，文生视频支持设置横、竖屏
+
+
 20250909：
 
 `Comfly_Doubao_Seedream_4节点`: 新增节点："Comfly Doubao Seedream4.0
