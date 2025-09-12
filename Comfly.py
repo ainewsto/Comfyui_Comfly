@@ -3750,9 +3750,7 @@ class Comfly_Doubao_Seedream_4:
 
             if sequential_image_generation == "auto":
                 payload["sequential_image_generation"] = sequential_image_generation
-                payload["sequential_image_generation_options"] = {
-                    "max_images": max_images
-                }
+                payload["n"] = max_images
                 
             if seed != -1:
                 payload["seed"] = seed
@@ -3848,10 +3846,13 @@ class Comfly_Doubao_Seedream_4:
                 "size": final_size,
                 "seed": seed if seed != -1 else "auto",
                 "urls": image_urls if image_urls else [],
-                "sequential_image_generation": sequential_image_generation,
-                "max_images": max_images if sequential_image_generation == "auto" else 1,
-                "images_generated": len(generated_images)
+                "sequential_image_generation": sequential_image_generation
             }
+
+            if sequential_image_generation == "auto":
+                response_info["max_images"] = max_images
+            
+            response_info["images_generated"] = len(generated_images)
             
             pbar.update_absolute(100)
             first_image_url = image_urls[0] if image_urls else ""
