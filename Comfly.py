@@ -3710,10 +3710,10 @@ class Comfly_Doubao_Seedream_4:
                 "prompt": ("STRING", {"multiline": True}),
                 "model": ("STRING", {"default": "doubao-seedream-4-0-250828"}),
                 "response_format": (["url", "b64_json"], {"default": "url"}),
-                "resolution": (["1K", "2K", "4K", "Custom"], {"default": "1K"}),
+                "resolution": (["1K", "2K", "4K"], {"default": "1K"}),
             },
             "optional": {
-                "aspect_ratio": (["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9", "9:21"], {"default": "1:1"}),
+                "aspect_ratio": (["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9", "9:21", "Custom"], {"default": "1:1"}),
                 "width": ("INT", {"default": 1024, "min": 64, "max": 8192, "step": 8}),
                 "height": ("INT", {"default": 1024, "min": 64, "max": 8192, "step": 8}),
                 "apikey": ("STRING", {"default": ""}),
@@ -3776,6 +3776,9 @@ class Comfly_Doubao_Seedream_4:
                 "9:21": "1728x4096"
             }
         }
+        
+        self.ratio_options = ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9", "9:21"]
+        self.ratio_values = [(1, 1), (4, 3), (3, 4), (16, 9), (9, 16), (2, 3), (3, 2), (21, 9), (9, 21)]
 
     def get_headers(self):
         return {
@@ -3793,6 +3796,23 @@ class Comfly_Doubao_Seedream_4:
         pil_image.save(buffered, format="PNG")
         image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
         return f"data:image/png;base64,{image_base64}"
+    
+    def find_closest_aspect_ratio(self, width, height):
+        """Find the closest predefined aspect ratio to the given width and height"""
+        target_ratio = width / height
+        
+        closest_ratio = "1:1"
+        closest_diff = float('inf')
+        
+        for i, (w, h) in enumerate(self.ratio_values):
+            ratio = w / h
+            diff = abs(ratio - target_ratio)
+            
+            if diff < closest_diff:
+                closest_diff = diff
+                closest_ratio = self.ratio_options[i]
+                
+        return closest_ratio
     
     def adjust_to_valid_dimensions(self, width, height):
         """Adjust dimensions to be within valid range (1024-4096)"""
@@ -3833,19 +3853,17 @@ class Comfly_Doubao_Seedream_4:
         try:
             pbar = comfy.utils.ProgressBar(100)
             pbar.update_absolute(10)
-            
-            if resolution == "Custom":
-                adjusted_width, adjusted_height = self.adjust_to_valid_dimensions(width, height)
-                final_size = f"{adjusted_width}x{adjusted_height}"
-                
-                if adjusted_width != width or adjusted_height != height:
-                    print(f"Note: Adjusted custom dimensions from {width}x{height} to {adjusted_width}x{adjusted_height} to fit allowed range (1024-4096)")
+
+            if aspect_ratio == "Custom":
+                closest_aspect_ratio = self.find_closest_aspect_ratio(width, height)
+                print(f"Custom aspect ratio: Using closest standard ratio {closest_aspect_ratio} for {width}x{height}")
+                aspect_ratio = closest_aspect_ratio
+
+            if resolution in self.size_mapping and aspect_ratio in self.size_mapping[resolution]:
+                final_size = self.size_mapping[resolution][aspect_ratio]
             else:
-                if resolution in self.size_mapping and aspect_ratio in self.size_mapping[resolution]:
-                    final_size = self.size_mapping[resolution][aspect_ratio]
-                else:
-                    final_size = "1024x1024"
-                    print(f"Warning: Combination of {resolution} resolution and {aspect_ratio} aspect ratio not found. Using {final_size}.")
+                final_size = "1024x1024"
+                print(f"Warning: Combination of {resolution} resolution and {aspect_ratio} aspect ratio not found. Using {final_size}.")
             
             payload = {
                 "model": model,
@@ -3953,16 +3971,14 @@ class Comfly_Doubao_Seedream_4:
                 "size": final_size,
                 "seed": seed if seed != -1 else "auto",
                 "urls": image_urls if image_urls else [],
-                "sequential_image_generation": sequential_image_generation
+                "sequential_image_generation": sequential_image_generation,
+                "aspect_ratio": aspect_ratio
             }
 
-            if resolution == "Custom":
-                response_info["requested_dimensions"] = f"{width}x{height}"
-                if width != adjusted_width or height != adjusted_height:
-                    response_info["adjusted_dimensions"] = f"{adjusted_width}x{adjusted_height}"
-            else:
-                response_info["aspect_ratio"] = aspect_ratio
-
+            if aspect_ratio == "Custom":
+                response_info["original_dimensions"] = f"{width}x{height}"
+                response_info["closest_aspect_ratio"] = aspect_ratio
+            
             if sequential_image_generation == "auto":
                 response_info["max_images"] = max_images
             

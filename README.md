@@ -32,6 +32,8 @@
 `Comfly_suno:节点`: 新增Comfly_suno_description，Comfly_suno_lyrics，Comfly_suno_custom三个节点
 简单描述生成歌曲，生成歌词，自定义生成歌曲三个节点。
 
+`Comfly_Doubao_Seedream_4节点`: 节点新增自定义尺寸。在aspect_ratio选择Custom，然后可以在width和height自定义。
+
 
 20250911：
 
