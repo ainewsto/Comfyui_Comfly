@@ -3714,8 +3714,8 @@ class Comfly_Doubao_Seedream_4:
             },
             "optional": {
                 "aspect_ratio": (["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9", "9:21", "Custom"], {"default": "1:1"}),
-                "width": ("INT", {"default": 1024, "min": 64, "max": 8192, "step": 8}),
-                "height": ("INT", {"default": 1024, "min": 64, "max": 8192, "step": 8}),
+                "width": ("INT", {"default": 1024, "min": 64, "max": 8192, "step": 1}),
+                "height": ("INT", {"default": 1024, "min": 64, "max": 8192, "step": 1}),
                 "apikey": ("STRING", {"default": ""}),
                 "image1": ("IMAGE",),
                 "image2": ("IMAGE",),
@@ -3776,9 +3776,12 @@ class Comfly_Doubao_Seedream_4:
                 "9:21": "1728x4096"
             }
         }
-        
-        self.ratio_options = ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9", "9:21"]
-        self.ratio_values = [(1, 1), (4, 3), (3, 4), (16, 9), (9, 16), (2, 3), (3, 2), (21, 9), (9, 21)]
+
+        self.resolution_factors = {
+            "1K": 1,
+            "2K": 2,
+            "4K": 4
+        }
 
     def get_headers(self):
         return {
@@ -3796,41 +3799,6 @@ class Comfly_Doubao_Seedream_4:
         pil_image.save(buffered, format="PNG")
         image_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
         return f"data:image/png;base64,{image_base64}"
-    
-    def find_closest_aspect_ratio(self, width, height):
-        """Find the closest predefined aspect ratio to the given width and height"""
-        target_ratio = width / height
-        
-        closest_ratio = "1:1"
-        closest_diff = float('inf')
-        
-        for i, (w, h) in enumerate(self.ratio_values):
-            ratio = w / h
-            diff = abs(ratio - target_ratio)
-            
-            if diff < closest_diff:
-                closest_diff = diff
-                closest_ratio = self.ratio_options[i]
-                
-        return closest_ratio
-    
-    def adjust_to_valid_dimensions(self, width, height):
-        """Adjust dimensions to be within valid range (1024-4096)"""
-
-        width = ((width + 7) // 8) * 8
-        height = ((height + 7) // 8) * 8
-
-        if width < 1024:
-            width = 1024
-        elif width > 4096:
-            width = 4096
-            
-        if height < 1024:
-            height = 1024
-        elif height > 4096:
-            height = 4096
-            
-        return width, height
     
     def generate_image(self, prompt, model, response_format="url", resolution="1K", 
                   aspect_ratio="1:1", width=1024, height=1024, apikey="", 
@@ -3855,15 +3823,19 @@ class Comfly_Doubao_Seedream_4:
             pbar.update_absolute(10)
 
             if aspect_ratio == "Custom":
-                closest_aspect_ratio = self.find_closest_aspect_ratio(width, height)
-                print(f"Custom aspect ratio: Using closest standard ratio {closest_aspect_ratio} for {width}x{height}")
-                aspect_ratio = closest_aspect_ratio
 
-            if resolution in self.size_mapping and aspect_ratio in self.size_mapping[resolution]:
-                final_size = self.size_mapping[resolution][aspect_ratio]
+                scale_factor = self.resolution_factors.get(resolution, 1)
+                scaled_width = int(width * scale_factor)
+                scaled_height = int(height * scale_factor)
+    
+                final_size = f"{scaled_width}x{scaled_height}"
+                print(f"Using custom dimensions with {resolution} scaling: {final_size}")
             else:
-                final_size = "1024x1024"
-                print(f"Warning: Combination of {resolution} resolution and {aspect_ratio} aspect ratio not found. Using {final_size}.")
+                if resolution in self.size_mapping and aspect_ratio in self.size_mapping[resolution]:
+                    final_size = self.size_mapping[resolution][aspect_ratio]
+                else:
+                    final_size = "1024x1024"
+                    print(f"Warning: Combination of {resolution} resolution and {aspect_ratio} aspect ratio not found. Using {final_size}.")
             
             payload = {
                 "model": model,
@@ -3977,7 +3949,7 @@ class Comfly_Doubao_Seedream_4:
 
             if aspect_ratio == "Custom":
                 response_info["original_dimensions"] = f"{width}x{height}"
-                response_info["closest_aspect_ratio"] = aspect_ratio
+                response_info["scaled_dimensions"] = final_size
             
             if sequential_image_generation == "auto":
                 response_info["max_images"] = max_images
