@@ -27,6 +27,12 @@
 
 # 更新 Update：
 
+20250918：
+
+`Comfly_suno:节点`: 新增Comfly_suno_description，Comfly_suno_lyrics，Comfly_suno_custom三个节点
+简单描述生成歌曲，生成歌词，自定义生成歌曲三个节点。
+
+
 20250911：
 
 `Comfly_Googel_Veo3:节点`: Veo 模型大幅降价，文生视频支持设置横、竖屏
