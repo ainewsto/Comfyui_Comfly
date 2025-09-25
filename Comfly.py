@@ -24,6 +24,8 @@ import subprocess
 from .utils import pil2tensor, tensor2pil
 from comfy.utils import common_upscale
 from comfy.comfy_types import IO
+import concurrent.futures
+import threading
 
 
 
@@ -830,14 +832,38 @@ class Comfly_Mju(ComflyBaseNode):
             config = get_config()
             config['api_key'] = api_key
             save_config(config)
-            
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        
         try:
-            results = loop.run_until_complete(self.process_input(taskId, U1, U2, U3, U4))
-        finally:
-            loop.close()
-        return results
+            try:
+                current_loop = asyncio.get_running_loop()
+            
+                def run_async():
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    try:
+                        return new_loop.run_until_complete(self.process_input(taskId, U1, U2, U3, U4))
+                    finally:
+                        new_loop.close()
+
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_async)
+                    return future.result()
+                    
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    results = loop.run_until_complete(self.process_input(taskId, U1, U2, U3, U4))
+                finally:
+                    loop.close()
+                return results
+                
+        except Exception as e:
+            print(f"Error in run method: {str(e)}")
+            blank_image = Image.new('RGB', (512, 512), color='white')
+            blank_tensor = pil2tensor(blank_image)
+            return (blank_tensor, "")
+
 
     async def process_input(self, taskId, U1=False, U2=False, U3=False, U4=False):
         try:
@@ -867,37 +893,76 @@ class Comfly_Mju(ComflyBaseNode):
                 print(error_message)
                 raise self.MidjourneyError(error_message)
 
-            properties = {}
-            if "properties" in task_result:
-                if isinstance(task_result["properties"], str):
+            messageId = None
+
+            if "properties" in task_result and task_result["properties"]:
+                properties = task_result["properties"]
+
+                if isinstance(properties, str):
                     try:
-                        properties = json.loads(task_result["properties"])
+                        properties = json.loads(properties)
                     except json.JSONDecodeError as e:
-                        error_message = f"Failed to parse properties JSON: {e}"
-                        print(error_message)
-                        raise self.MidjourneyError(error_message)
-                else:
-                    properties = task_result["properties"]
+                        print(f"Failed to parse properties JSON: {e}")
+                        properties = {}
 
-            message_id = properties.get("messageId")
-            if not message_id:
-                if "buttons" in task_result and task_result["buttons"]:
-                    try:
-                        buttons = json.loads(task_result["buttons"])
-                        if buttons and len(buttons) > 0:
-                            custom_id = buttons[0].get("customId", "")
-                            parts = custom_id.split("::")
-                            if len(parts) >= 5:
-                                message_id = parts[4]
-                    except Exception as e:
-                        print(f"Failed to extract messageId from buttons: {e}")
+                if isinstance(properties, dict):
+                    messageId = properties.get("messageId") or properties.get("message_id")
 
-            if not message_id:
+            if not messageId and "buttons" in task_result and task_result["buttons"]:
+                buttons = task_result["buttons"]
+                
+                try:
+                    if isinstance(buttons, str):
+                        buttons = json.loads(buttons)
+
+                    if isinstance(buttons, list) and buttons:
+                        for button in buttons:
+                            if isinstance(button, dict):
+                                custom_id = button.get("customId", "")
+                                if custom_id:
+                                    parts = custom_id.split("::")
+                                    if len(parts) >= 5:
+                                        messageId = parts[4]
+                                        break
+                                
+                except (json.JSONDecodeError, TypeError, AttributeError) as e:
+                    print(f"Error processing buttons: {str(e)}")
+
+            if not messageId:
+                possible_fields = ['messageId', 'message_id', 'id', 'task_id']
+                for field in possible_fields:
+                    if field in task_result and task_result[field]:
+                        messageId = task_result[field]
+                        print(f"Found messageId in field '{field}': {messageId}")
+                        break
+
+            if not messageId:
+                response_str = str(task_result)
+
+                id_patterns = [
+                    r'"(?:messageId|message_id|id)"\s*:\s*"([a-zA-Z0-9\-_]{16,})"',
+                    r'MJ::JOB::\w+::\d+::([a-zA-Z0-9\-_]{16,})',
+                    r'"([a-zA-Z0-9\-_]{20,})"'
+                ]
+                
+                for pattern in id_patterns:
+                    match = re.search(pattern, response_str)
+                    if match:
+                        messageId = match.group(1)
+                        print(f"Found messageId using pattern: {messageId}")
+                        break
+
+            if not messageId:
+                messageId = taskId
+                print(f"Using taskId as messageId: {messageId}")
+
+            if not messageId:
                 error_message = "Could not find messageId in task result"
                 print(error_message)
+                print(f"Task result structure: {json.dumps(task_result, indent=2)}")
                 raise self.MidjourneyError(error_message)
 
-            custom_id = self.generate_custom_id(action, index, message_id)
+            custom_id = self.generate_custom_id(action, index, messageId)
 
             response = await self.midjourney_submit_action(action, taskId, index, custom_id)
 
@@ -934,7 +999,8 @@ class Comfly_Mju(ComflyBaseNode):
             raise e
         except Exception as e:
             print(f"An error occurred while processing input: {str(e)}")
-            raise e       
+            raise e
+       
 
     def generate_custom_id(self, action, index, message_id):
         if action == "zoom":
@@ -1236,75 +1302,56 @@ class Comfly_Mjv(ComflyBaseNode):
     FUNCTION = "run"
     CATEGORY = "Comfly/Midjourney"
 
-    async def submit_action(self, customId, taskId):
-        headers = self.get_headers()
-        payload = {
-            "customId": customId,
-            "taskId": taskId
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/action", headers=headers, json=payload) as response: 
-                if response.status == 200:
-                    try:
-                        data = await response.json()
-                        return data
-                    except aiohttp.client_exceptions.ContentTypeError:
-                        text_response = await response.text()
-                        print(f"API returned non-JSON response: {text_response}")
-                        try:
-                            import json
-                            data = json.loads(text_response)
-                            return data
-                        except json.JSONDecodeError:
-                            if text_response and len(text_response) < 100:
-                                return {"result": text_response.strip()}
-                            raise Exception(f"Invalid response format: {text_response}")
-                else:
-                    error_message = f"Error submitting Midjourney action: {response.status}"
-                    print(error_message)
-                    try:
-                        error_details = await response.text()
-                        error_message += f" - {error_details}"
-                    except:
-                        pass
-                    raise Exception(error_message)
-    
-    async def submit_modal(self, prompt, taskId, maskBase64=None):
-        headers = self.get_headers()
-        payload = {
-            "prompt": prompt,
-            "taskId": taskId
-        }
-        
-        if maskBase64:
-            payload["maskBase64"] = maskBase64
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/modal", headers=headers, json=payload) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data
-                else:
-                    error_message = f"Error submitting Midjourney modal: {response.status}"
-                    print(error_message)
-                    raise Exception(error_message)
-    
     def run(self, taskId, upsample_v6_2x_subtle=False, upsample_v6_2x_creative=False, costume_zoom=False, zoom=1.0, pan_left=False, pan_right=False, pan_up=False, pan_down=False, api_key=""):
         if api_key.strip():
             self.api_key = api_key
             config = get_config()
             config['api_key'] = api_key
             save_config(config)
-       
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            image_url = loop.run_until_complete(self.process_input(taskId, upsample_v6_2x_subtle, upsample_v6_2x_creative, costume_zoom, zoom, pan_left, pan_right, pan_up, pan_down))
-        finally:
-            loop.close()
         
-        return image_url
+        try:
+            try:
+                current_loop = asyncio.get_running_loop()
+            
+                def run_async():
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    try:
+                        return new_loop.run_until_complete(self.process_input(taskId, upsample_v6_2x_subtle, upsample_v6_2x_creative, costume_zoom, zoom, pan_left, pan_right, pan_up, pan_down))
+                    finally:
+                        new_loop.close()
+
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_async)
+                    result = future.result()
+
+                    if isinstance(result, tuple) and len(result) > 0:
+                        return result
+                    else:
+                        blank_image = Image.new('RGB', (512, 512), color='white')
+                        blank_tensor = pil2tensor(blank_image)
+                        return (blank_tensor,)
+                    
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(self.process_input(taskId, upsample_v6_2x_subtle, upsample_v6_2x_creative, costume_zoom, zoom, pan_left, pan_right, pan_up, pan_down))
+
+                    if isinstance(result, tuple) and len(result) > 0:
+                        return result
+                    else:
+                        blank_image = Image.new('RGB', (512, 512), color='white')
+                        blank_tensor = pil2tensor(blank_image)
+                        return (blank_tensor,)
+                finally:
+                    loop.close()
+                
+        except Exception as e:
+            print(f"Error in run method: {str(e)}")
+            blank_image = Image.new('RGB', (512, 512), color='white')
+            blank_tensor = pil2tensor(blank_image)
+            return (blank_tensor,)
 
     async def process_input(self, taskId, upsample_v6_2x_subtle=False, upsample_v6_2x_creative=False, costume_zoom=False, zoom=1.0, pan_left=False, pan_right=False, pan_up=False, pan_down=False):
         if taskId:
@@ -1334,8 +1381,16 @@ class Comfly_Mjv(ComflyBaseNode):
 
                 if not messageId and "buttons" in task_result and task_result["buttons"]:
                     try:
-                        buttons = json.loads(task_result["buttons"])
-                        if buttons and len(buttons) > 0:
+                        buttons = task_result["buttons"]
+                        if isinstance(buttons, str):
+                            buttons = json.loads(buttons)
+                        elif isinstance(buttons, list):
+                            pass
+                        else:
+                            print(f"Unexpected buttons type: {type(buttons)}")
+                            buttons = []
+                        
+                        if buttons and len(buttons) > 0 and isinstance(buttons[0], dict):
                             first_button_id = buttons[0].get("customId", "")
                             parts = first_button_id.split("::")
                             if len(parts) >= 5:
@@ -1403,15 +1458,21 @@ class Comfly_Mjv(ComflyBaseNode):
                     tensor_image = pil2tensor(image)
                     return (tensor_image,)
                 else:
-                    return (None,)
+                    blank_image = Image.new('RGB', (512, 512), color='white')
+                    blank_tensor = pil2tensor(blank_image)
+                    return (blank_tensor,)
 
             except Exception as e:
                 error_message = f"Error processing action: {str(e)}"
                 print(error_message)
-                return (error_message,)
+                blank_image = Image.new('RGB', (512, 512), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor,)
         else:
             print("No taskId provided.")
-            return ("No taskId provided.",)
+            blank_image = Image.new('RGB', (512, 512), color='white')
+            blank_tensor = pil2tensor(blank_image)
+            return (blank_tensor,)
 
     async def process_task(self, taskId):
         while True:
@@ -1434,6 +1495,94 @@ class Comfly_Mjv(ComflyBaseNode):
                 error_message = f"Error fetching task result: {str(e)}"
                 print(error_message)
                 raise Exception(error_message)
+
+    async def submit_action(self, customId, taskId):
+        headers = self.get_headers()
+        payload = {
+            "customId": customId,
+            "taskId": taskId
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/action", headers=headers, json=payload) as response: 
+                if response.status == 200:
+                    try:
+                        data = await response.json()
+                        return data
+                    except aiohttp.client_exceptions.ContentTypeError:
+                        text_response = await response.text()
+                        print(f"API returned non-JSON response: {text_response}")
+                        try:
+                            import json
+                            data = json.loads(text_response)
+                            return data
+                        except json.JSONDecodeError:
+                            if text_response and len(text_response) < 100:
+                                return {"result": text_response.strip()}
+                            raise Exception(f"Invalid response format: {text_response}")
+                else:
+                    error_message = f"Error submitting Midjourney action: {response.status}"
+                    print(error_message)
+                    try:
+                        error_details = await response.text()
+                        error_message += f" - {error_details}"
+                    except:
+                        pass
+                    raise Exception(error_message)
+    
+    async def submit_modal(self, prompt, taskId, maskBase64=None):
+        headers = self.get_headers()
+        payload = {
+            "prompt": prompt,
+            "taskId": taskId
+        }
+        
+        if maskBase64:
+            payload["maskBase64"] = maskBase64
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/modal", headers=headers, json=payload) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return data
+                else:
+                    error_message = f"Error submitting Midjourney modal: {response.status}"
+                    print(error_message)
+                    raise Exception(error_message)
+
+    async def midjourney_fetch_task_result(self, taskId):
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + self.api_key
+        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(f"{self.midjourney_api_url[self.speed]}/mj/task/{taskId}/fetch", headers=headers, timeout=self.timeout) as response:
+                    if response.status == 200:
+                        try:
+                            data = await response.json()
+                            return data
+                        except aiohttp.client_exceptions.ContentTypeError:
+                            text_response = await response.text()
+                            try:
+                                import json
+                                data = json.loads(text_response)
+                                return data
+                            except json.JSONDecodeError:
+                                if text_response and len(text_response) < 100:
+                                    return {"status": "SUCCESS", "progress": "100%", "imageUrl": text_response.strip()}
+                                raise Exception(f"Server returned invalid response: {text_response}")
+                    else:
+                        error_message = f"Error fetching Midjourney task result: {response.status}"
+                        try:
+                            error_details = await response.text()
+                            error_message += f" - {error_details}"
+                        except:
+                            pass
+                        raise Exception(error_message)
+        except asyncio.TimeoutError:
+            error_message = f"Timeout error: Request to fetch task result timed out after {self.timeout} seconds"
+            raise Exception(error_message)
 
 
 class Comfly_Mj_swap_face(ComflyBaseNode):
