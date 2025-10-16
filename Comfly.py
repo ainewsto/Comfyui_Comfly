@@ -5957,7 +5957,7 @@ class Comfly_sora2:
                 "prompt": ("STRING", {"multiline": True}),
                 "model": (["sora-2", "sora-2-pro"], {"default": "sora-2"}),
                 "aspect_ratio": (["16:9", "9:16"], {"default": "16:9"}),
-                "duration": (["10", "15"], {"default": "10"}),
+                "duration": (["10", "15", "25"], {"default": "15"}),
                 "hd": ("BOOLEAN", {"default": False}),
                 "apikey": ("STRING", {"default": ""})
             },
@@ -6009,8 +6009,8 @@ class Comfly_sora2:
             return ("", "", json.dumps(error_response))
 
         if model == "sora-2":
-            if duration == "15":
-                error_message = "The sora-2 model does not support 15 second videos. Please use sora-2-pro for 15 second videos or change duration to 10."
+            if duration == "25":  
+                error_message = "The sora-2 model does not support 25 second videos. Please use sora-2-pro for 25 second videos."
                 print(error_message)
                 return ("", "", json.dumps({"status": "error", "message": error_message}))
             if hd:
