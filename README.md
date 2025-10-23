@@ -29,6 +29,8 @@
 
 2025103:
 
+`Comfly_sora2_chat:节点`: 新增sora2视频chat格式节点，可以导出gif文件。
+
 `Comfly_api_set:节点`: 这个节点是专门用来设置api的，apikey，api线路（有4个选项，comfly是本站，ip需要加群获取，hk和us线路
 如果遇到故障，可以切换来使用，增加稳定性）。
 
