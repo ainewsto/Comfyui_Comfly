@@ -28,7 +28,6 @@ import concurrent.futures
 import threading
 
 
-
 def get_config():
     try:
         config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'Comflyapi.json')
@@ -42,6 +41,53 @@ def save_config(config):
     config_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'Comflyapi.json')
     with open(config_path, 'w') as f:
         json.dump(config, f, indent=4)
+
+
+class Comfly_api_set:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "api_base": (["comfly", "ip", "hk", "us"], {"default": "comfly"}),
+                "apikey": ("STRING", {"default": ""}),
+            },
+            "optional": {
+                "custom_ip": ("STRING", {"default": "", "placeholder": "Enter IP when using 'ip' option (e.g. http://104.194.8.112:9088)"}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("apikey",)
+    FUNCTION = "set_api_base"
+    CATEGORY = "Comfly"
+
+    def set_api_base(self, api_base, apikey="", custom_ip=""):
+        global baseurl
+        
+        base_url_mapping = {
+            "comfly": "https://ai.comfly.chat",
+            "ip": custom_ip,
+            "hk": "https://hk-api.gptbest.vip",
+            "us": "https://api.gptbest.vip"
+        }
+        
+        if api_base == "ip" and not custom_ip.strip():
+            raise ValueError("When selecting 'ip' option, you must provide a custom IP address in the 'custom_ip' field")
+        
+        if api_base in base_url_mapping:
+            baseurl = base_url_mapping[api_base]
+            
+        if apikey.strip():
+            config = get_config()
+            config['api_key'] = apikey
+            save_config(config)
+            
+        message = f"API Base URL set to: {baseurl}"
+        if apikey.strip():
+            message += "\nAPI key has been updated"
+            
+        print(message)
+        return (apikey,)
 
 
 class ComflyVideoAdapter:
@@ -173,9 +219,9 @@ def create_audio_object(audio_url):
 class ComflyBaseNode:
     def __init__(self):
         self.midjourney_api_url = {
-            "turbo mode": "https://ai.comfly.chat/mj-turbo",
-            "fast mode": "https://ai.comfly.chat/mj-fast",
-            "relax mode": "https://ai.comfly.chat/mj-relax"
+            "turbo mode": f"{baseurl}/mj-turbo",
+            "fast mode": f"{baseurl}/mj-fast",
+            "relax mode": f"{baseurl}/mj-relax"
         }
         self.api_key = get_config().get('api_key', '') 
         self.speed = "fast mode"
@@ -1631,7 +1677,7 @@ class Comfly_Mj_swap_face(ComflyBaseNode):
         """Fetch task result by task_id"""
         try:
             response = requests.get(
-                f"https://ai.comfly.chat/mj/task/{task_id}/fetch",
+                f"{baseurl}/mj/task/{task_id}/fetch",
                 headers=self.get_headers(),
                 timeout=self.timeout
             )
@@ -1675,7 +1721,7 @@ class Comfly_Mj_swap_face(ComflyBaseNode):
 
             print("Sending request to face swap API...")
             response = requests.post(
-                "https://ai.comfly.chat/mj/insight-face/swap",
+                f"{baseurl}/mj/insight-face/swap",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -2008,7 +2054,7 @@ class Comfly_mj_video(ComflyBaseNode):
             print("Submitting video generation request...")
             try:
                 response = requests.post(
-                    "https://ai.comfly.chat/mj/submit/video", 
+                    f"{baseurl}/mj/submit/video", 
                     headers=self.get_headers(),
                     json=payload,
                     timeout=(30, 90)  
@@ -2052,7 +2098,7 @@ class Comfly_mj_video(ComflyBaseNode):
             while retry_count < max_retries:
                 try:
                     status_response = requests.get(
-                        f"https://ai.comfly.chat/mj/task/{task_id}/fetch",
+                        f"{baseurl}/mj/task/{task_id}/fetch",
                         headers=self.get_headers(),
                         timeout=(10, 30)  
                     )
@@ -2202,7 +2248,7 @@ class Comfly_mj_video_extend(ComflyBaseNode):
             print("Submitting video extension request...")
 
             response = requests.post(
-                "https://ai.comfly.chat/mj/submit/video",
+                f"{baseurl}/mj/submit/video",
                 headers=self.get_headers(),
                 json=payload
             )
@@ -2231,7 +2277,7 @@ class Comfly_mj_video_extend(ComflyBaseNode):
             while True:
                 try:
                     status_response = requests.get(
-                        f"https://ai.comfly.chat/mj/task/{new_task_id}/fetch",
+                        f"{baseurl}/mj/task/{new_task_id}/fetch",
                         headers=self.get_headers()
                     )
                     
@@ -2487,7 +2533,7 @@ class Comfly_kling_text2video:
         try:
             pbar = comfy.utils.ProgressBar(100)  
             response = requests.post(
-                "https://ai.comfly.chat/kling/v1/videos/text2video",
+                f"{baseurl}/kling/v1/videos/text2video",
                 headers=self.get_headers(),
                 json=payload
             )
@@ -2504,7 +2550,7 @@ class Comfly_kling_text2video:
             while True:
                 time.sleep(2)
                 status_response = requests.get(
-                    f"https://ai.comfly.chat/kling/v1/videos/text2video/{task_id}",
+                    f"{baseurl}/kling/v1/videos/text2video/{task_id}",
                     headers=self.get_headers()
                 )
                 status_response.raise_for_status()
@@ -2701,7 +2747,7 @@ class Comfly_kling_image2video:
             pbar = comfy.utils.ProgressBar(100)
             pbar.update_absolute(5)  
             response = requests.post(
-                "https://ai.comfly.chat/kling/v1/videos/image2video",
+                f"{baseurl}/kling/v1/videos/image2video",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -2726,7 +2772,7 @@ class Comfly_kling_image2video:
             while True:
                 time.sleep(2)
                 status_response = requests.get(
-                    f"https://ai.comfly.chat/kling/v1/videos/image2video/{task_id}",
+                    f"{baseurl}/kling/v1/videos/image2video/{task_id}",
                     headers=self.get_headers(),
                     timeout=self.timeout
                 )
@@ -2785,7 +2831,7 @@ class Comfly_kling_image2video:
             "master_left_rotate_zoom": {"type":"rotate","horizontal":0,"vertical":0,"zoom":camera_value,"tilt":0,"pan":camera_value,"roll":0},
         }
         return json.dumps(camera_mappings.get(camera, camera_mappings["none"]))
-        
+
 
 class Comfly_kling_multi_image2video:
     @classmethod
@@ -2906,7 +2952,7 @@ class Comfly_kling_multi_image2video:
             try:
                 status_response = self.make_request_with_retry(
                     'get',
-                    f"https://ai.comfly.chat/kling/v1/videos/multi-image2video/{task_id}",
+                    f"{baseurl}/kling/v1/videos/multi-image2video/{task_id}",
                     headers=headers
                 )
                 
@@ -2998,7 +3044,7 @@ class Comfly_kling_multi_image2video:
             print("Submitting multi-image video generation request...")
             response = self.make_request_with_retry(
                 'post',
-                "https://ai.comfly.chat/kling/v1/videos/multi-image2video",
+                f"{baseurl}/kling/v1/videos/multi-image2video",
                 headers=headers,
                 json=payload,
                 max_retries=max_retries,
@@ -3111,7 +3157,7 @@ class Comfly_video_extend:
         }
         try:
             response = requests.post(
-                "https://ai.comfly.chat/kling/v1/videos/video-extend",
+                f"{baseurl}/kling/v1/videos/video-extend",
                 headers=headers,
                 json=payload,
                 timeout=self.timeout
@@ -3129,7 +3175,7 @@ class Comfly_video_extend:
             while True:
                 time.sleep(2)
                 status_response = requests.get(
-                    f"https://ai.comfly.chat/kling/v1/videos/video-extend/{task_id}",
+                    f"{baseurl}/kling/v1/videos/video-extend/{task_id}",
                     headers=headers,
                     timeout=self.timeout
                 )
@@ -3318,7 +3364,7 @@ class Comfly_lip_sync:
             pbar = comfy.utils.ProgressBar(100)
             pbar.update_absolute(5)  
             response = requests.post(
-                "https://ai.comfly.chat/kling/v1/videos/lip-sync",
+                f"{baseurl}/kling/v1/videos/lip-sync",
                 headers=headers,
                 json=payload,
                 timeout=self.timeout
@@ -3336,7 +3382,7 @@ class Comfly_lip_sync:
             while True:
                 time.sleep(2)
                 status_response = requests.get(
-                    f"https://ai.comfly.chat/kling/v1/videos/lip-sync/{task_id}",
+                    f"{baseurl}/kling/v1/videos/lip-sync/{task_id}",
                     headers=headers,
                     timeout=self.timeout
                 )
@@ -3417,7 +3463,7 @@ class ComflyGeminiAPI:
     RETURN_TYPES = ("IMAGE", "STRING", "STRING")
     RETURN_NAMES = ("generated_images", "response", "image_url")
     FUNCTION = "process"
-    CATEGORY = "Comfly/Comfly_Gemini"
+    CATEGORY = "Comfly/Google"
 
     def __init__(self):
         self.api_key = get_config().get('api_key', '')
@@ -3556,7 +3602,7 @@ class ComflyGeminiAPI:
 
             try:
                 response = requests.post(
-                    "https://ai.comfly.chat/v1/chat/completions",
+                    f"{baseurl}/v1/chat/completions",
                     headers=self.get_headers(),
                     json=payload,
                     timeout=self.timeout
@@ -3759,7 +3805,7 @@ class Comfly_Doubao_Seedream:
                 payload["seed"] = seed
             
             response = requests.post(
-                "https://ai.comfly.chat/v1/images/generations",
+                f"{baseurl}/v1/images/generations",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -4016,7 +4062,7 @@ class Comfly_Doubao_Seedream_4:
                 payload["image"] = image_urls
             
             response = requests.post(
-                "https://ai.comfly.chat/v1/images/generations",
+                f"{baseurl}/v1/images/generations",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -4188,7 +4234,7 @@ class Comfly_Doubao_Seededit:
                 payload["seed"] = seed
             
             response = requests.post(
-                "https://ai.comfly.chat/v1/images/generations",
+                f"{baseurl}/v1/images/generations",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -4334,7 +4380,7 @@ class ComflyJimengApi:
             files = {'file': ('image.png', file_content, 'image/png')}
 
             response = requests.post(
-                "https://ai.comfly.chat/v1/files",
+                f"{baseurl}/v1/files",
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 files=files,
                 timeout=self.timeout
@@ -4434,7 +4480,7 @@ class ComflyJimengApi:
                     "stream": True
                 }
 
-                api_url = "https://ai.comfly.chat/v1/chat/completions"
+                api_url = f"{baseurl}/v1/chat/completions"
                 headers = self.get_headers()
 
                 pbar.update_absolute(30)
@@ -4505,7 +4551,7 @@ class ComflyJimengApi:
                         return (blank_tensor, response_info, "")
             
             else:
-                api_url = "https://ai.comfly.chat/volcv/v1?Action=CVProcess&Version=2022-08-31"
+                api_url = f"{baseurl}/volcv/v1?Action=CVProcess&Version=2022-08-31"
                 
                 timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
                 response_info = f"**Jimeng Image Generation Request**\n\n"
@@ -4662,7 +4708,7 @@ class ComflyJimengVideoApi:
             files = {'file': ('image.png', file_content, 'image/png')}
 
             response = requests.post(
-                "https://ai.comfly.chat/v1/files",
+                f"{baseurl}/v1/files",
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 files=files,
                 timeout=self.timeout
@@ -4719,7 +4765,7 @@ class ComflyJimengVideoApi:
 
             pbar.update_absolute(30)
             response = requests.post(
-                "https://ai.comfly.chat/jimeng/submit/videos",
+                f"{baseurl}/jimeng/submit/videos",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -4764,7 +4810,7 @@ class ComflyJimengVideoApi:
                 
                 try:
                     status_response = requests.get(
-                        f"https://ai.comfly.chat/jimeng/fetch/{task_id}",
+                        f"{baseurl}/jimeng/fetch/{task_id}",
                         headers=self.get_headers(),
                         timeout=30
                     )
@@ -4953,7 +4999,7 @@ class ComflySeededit:
             }
             
             # Call the API
-            api_url = "https://ai.comfly.chat/volcv/v1?Action=CVProcess&Version=2022-08-31"
+            api_url = f"{baseurl}/volcv/v1?Action=CVProcess&Version=2022-08-31"
             
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
             response_info = f"**SeedEdit Request**\n\n"
@@ -5298,7 +5344,7 @@ class Comfly_gpt_image_1_edit:
                         image_files.append(('mask', files['mask']))
 
                     response = self.make_request_with_retry(
-                        "https://ai.comfly.chat/v1/images/edits",
+                        f"{baseurl}/v1/images/edits",
                         data=data,
                         files=image_files,
                         max_retries=max_retries,
@@ -5312,7 +5358,7 @@ class Comfly_gpt_image_1_edit:
                         request_files.append(('mask', files['mask']))
 
                     response = self.make_request_with_retry(
-                        "https://ai.comfly.chat/v1/images/edits",
+                        f"{baseurl}/v1/images/edits",
                         data=data,
                         files=request_files,
                         max_retries=max_retries,
@@ -5426,7 +5472,7 @@ class Comfly_gpt_image_1_edit:
             print(traceback.format_exc())  
             print(error_message)
             return (original_image, error_message, self.format_conversation_history())
-    
+        
 
 class Comfly_gpt_image_1:
     @classmethod
@@ -5496,7 +5542,7 @@ class Comfly_gpt_image_1:
                 payload["size"] = size
             
             response = requests.post(
-                "https://ai.comfly.chat/v1/images/generations",
+                f"{baseurl}/v1/images/generations",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -5629,7 +5675,7 @@ class ComflyChatGPTApi:
         self.api_key = get_config().get('api_key', '')
         self.timeout = 800
         self.image_download_timeout = 600
-        self.api_endpoint = "https://ai.comfly.chat/v1/chat/completions"
+        self.api_endpoint = f"{baseurl}/v1/chat/completions"
         self.conversation_history = []
  
     def get_headers(self):
@@ -6054,7 +6100,7 @@ class Comfly_sora2:
                 if seed > 0:
                     payload["seed"] = seed
                 
-                endpoint = "https://ai.comfly.chat/v2/videos/generations"
+                endpoint = f"{baseurl}/v2/videos/generations"
             else:
                 payload = {
                     "prompt": prompt,
@@ -6067,7 +6113,7 @@ class Comfly_sora2:
                 if seed > 0:
                     payload["seed"] = seed
                     
-                endpoint = "https://ai.comfly.chat/v2/videos/generations"
+                endpoint = f"{baseurl}/v2/videos/generations"
             
             pbar.update_absolute(20)
             
@@ -6105,7 +6151,7 @@ class Comfly_sora2:
                 
                 try:
                     status_response = requests.get(
-                        f"https://ai.comfly.chat/v2/videos/generations/{task_id}",
+                        f"{baseurl}/v2/videos/generations/{task_id}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -6222,7 +6268,7 @@ class Comfly_Flux_Kontext:
             files = {'file': ('image.png', file_content, 'image/png')}
             
             response = requests.post(
-                "https://ai.comfly.chat/v1/files",
+                f"{baseurl}/v1/files",
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 files=files,
                 timeout=self.timeout
@@ -6312,7 +6358,7 @@ class Comfly_Flux_Kontext:
                 payload["seed"] = seed
 
             response = requests.post(
-                "https://ai.comfly.chat/v1/images/generations",
+                f"{baseurl}/v1/images/generations",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -6475,7 +6521,7 @@ class Comfly_Flux_Kontext_Edit:
 
                 pbar.update_absolute(30)
                 response = requests.post(
-                    "https://ai.comfly.chat/v1/images/edits",
+                    f"{baseurl}/v1/images/edits",
                     headers=self.get_headers(),
                     data=data,
                     files=files,
@@ -6498,7 +6544,7 @@ class Comfly_Flux_Kontext_Edit:
                 headers["Content-Type"] = "application/json"
                 
                 response = requests.post(
-                    "https://ai.comfly.chat/v1/images/generations",
+                    f"{baseurl}/v1/images/generations",
                     headers=headers,
                     json=payload,
                     timeout=self.timeout
@@ -6644,7 +6690,7 @@ class Comfly_Flux_Kontext_bfl:
         pbar = comfy.utils.ProgressBar(100)
         pbar.update_absolute(10)
 
-        api_endpoint = f"https://ai.comfly.chat/bfl/v1/{model}"
+        api_endpoint = f"{baseurl}/bfl/v1/{model}"
         
         try:
             payload = {
@@ -6701,7 +6747,7 @@ class Comfly_Flux_Kontext_bfl:
                 
                 try:
                     result_response = requests.get(
-                        f"https://ai.comfly.chat/bfl/v1/get_result?id={task_id}",
+                        f"{baseurl}/bfl/v1/get_result?id={task_id}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -6859,7 +6905,7 @@ class Comfly_Googel_Veo3:
                     payload["images"] = images_base64
 
             response = requests.post(
-                "https://ai.comfly.chat/google/v1/models/veo/videos",
+                f"{baseurl}/google/v1/models/veo/videos",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -6895,7 +6941,7 @@ class Comfly_Googel_Veo3:
                 
                 try:
                     status_response = requests.get(
-                        f"https://ai.comfly.chat/google/v1/tasks/{task_id}",
+                        f"{baseurl}/google/v1/tasks/{task_id}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -6961,7 +7007,7 @@ class Comfly_Googel_Veo3:
             error_message = f"Error generating video: {str(e)}"
             print(error_message)
             return ("", "", json.dumps({"code": "error", "message": error_message}))
-    
+
 
 class Comfly_nano_banana:
     @classmethod
@@ -7017,7 +7063,7 @@ class Comfly_nano_banana:
         
         try:
             response = session.post(
-                "https://ai.comfly.chat/v1/chat/completions",
+                f"{baseurl}/v1/chat/completions",
                 headers=self.get_headers(),
                 json=payload, 
                 stream=True,
@@ -7232,7 +7278,7 @@ class Comfly_nano_banana_fal:
             
             headers = {"Authorization": f"Bearer {self.api_key}"}
             response = requests.post(
-                "https://ai.comfly.chat/v1/files",
+                f"{baseurl}/v1/files",
                 headers=headers,
                 files=files,
                 timeout=self.timeout
@@ -7304,7 +7350,7 @@ class Comfly_nano_banana_fal:
             pbar.update_absolute(20)
             
             if model.endswith("/edit"):
-                api_endpoint = f"https://ai.comfly.chat/fal-ai/{model}"
+                api_endpoint = f"{baseurl}/fal-ai/{model}"
 
                 payload = {
                     "prompt": prompt,
@@ -7326,7 +7372,7 @@ class Comfly_nano_banana_fal:
                     timeout=self.timeout
                 )
             else:
-                api_endpoint = f"https://ai.comfly.chat/fal-ai/{model}"
+                api_endpoint = f"{baseurl}/fal-ai/{model}"
                 
                 payload = {
                     "prompt": prompt,
@@ -7363,7 +7409,7 @@ class Comfly_nano_banana_fal:
                 response_url = response_url.replace("https://queue.fal.run", "https://ai.comfly.chat")
 
             if not response_url:
-                response_url = f"https://ai.comfly.chat/fal-ai/{model}/requests/{request_id}"
+                response_url = f"{baseurl}/fal-ai/{model}/requests/{request_id}"
             
             pbar.update_absolute(50)
 
@@ -7519,7 +7565,7 @@ class Comfly_nano_banana_edit:
                     payload["seed"] = seed
                 
                 response = requests.post(
-                    "https://ai.comfly.chat/v1/images/generations",
+                    f"{baseurl}/v1/images/generations",
                     headers=headers,
                     json=payload,
                     timeout=self.timeout
@@ -7549,7 +7595,7 @@ class Comfly_nano_banana_edit:
                     data["seed"] = str(seed)
                 
                 response = requests.post(
-                    "https://ai.comfly.chat/v1/images/edits",
+                    f"{baseurl}/v1/images/edits",
                     headers=headers,
                     data=data,
                     files=files,
@@ -7724,7 +7770,7 @@ class Comfly_qwen_image:
             pbar.update_absolute(30)
             
             response = requests.post(
-                "https://ai.comfly.chat/v1/images/generations", 
+                f"{baseurl}/v1/images/generations", 
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -7914,7 +7960,7 @@ class Comfly_qwen_image_edit:
             headers = {"Authorization": f"Bearer {self.api_key}"}
             
             response = requests.post(
-                "https://ai.comfly.chat/v1/images/edits", 
+                f"{baseurl}/v1/images/edits", 
                 headers=headers,
                 files=files,
                 data=data,
@@ -7985,7 +8031,6 @@ class Comfly_qwen_image_edit:
             return (image, error_message, "")
 
 
-
 ############################# MiniMax ###########################
 
 class Comfly_MiniMax_video:
@@ -8017,8 +8062,8 @@ class Comfly_MiniMax_video:
     def __init__(self):
         self.api_key = get_config().get('api_key', '')
         self.timeout = 600
-        self.api_endpoint = "https://ai.comfly.chat/minimax/v1/video_generation"
-        self.query_endpoint = "https://ai.comfly.chat/minimax/v1/query/video_generation"
+        self.api_endpoint = f"{baseurl}/minimax/v1/video_generation"
+        self.query_endpoint = f"{baseurl}/minimax/v1/query/video_generation"
 
     def get_headers(self):
         return {
@@ -8163,7 +8208,7 @@ class Comfly_MiniMax_video:
                     if status == "Success":
                         file_id = status_result.get("file_id")
                         if file_id:
-                            video_retrieval_url = f"https://ai.comfly.chat/minimax/v1/files/retrieve?file_id={file_id}"
+                            video_retrieval_url = f"{baseurl}/minimax/v1/files/retrieve?file_id={file_id}"
                             file_response = requests.get(
                                 video_retrieval_url,
                                 headers=self.get_headers(),
@@ -8176,10 +8221,10 @@ class Comfly_MiniMax_video:
                                     video_url = file_data["file"]["download_url"]
                                     break
                                 else:
-                                    video_url = f"https://ai.comfly.chat/minimax/v1/file?file_id={file_id}"
+                                    video_url = f"{baseurl}/minimax/v1/file?file_id={file_id}"
                                     break
                             else:
-                                video_url = f"https://ai.comfly.chat/minimax/v1/file?file_id={file_id}"
+                                video_url = f"{baseurl}/minimax/v1/file?file_id={file_id}"
                                 break
                     elif status == "Failed":
                         error_message = f"Video generation failed: {status_result.get('base_resp', {}).get('status_msg', 'Unknown error')}"
@@ -8195,7 +8240,7 @@ class Comfly_MiniMax_video:
                 return (None, task_id, json.dumps({"status": "error", "message": error_message}))
                 
             if not video_url:
-                video_url = f"https://ai.comfly.chat/minimax/v1/file?file_id={file_id}"
+                video_url = f"{baseurl}/minimax/v1/file?file_id={file_id}"
             
             pbar.update_absolute(90)
             print(f"Video generation completed. URL: {video_url}")
@@ -8295,7 +8340,7 @@ class Comfly_suno_description:
             pbar.update_absolute(10)
             
             response = requests.post(
-                "https://ai.comfly.chat/suno/generate/description-mode",
+                f"{baseurl}/suno/generate/description-mode",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -8346,7 +8391,7 @@ class Comfly_suno_description:
                 
                 try:
                     clip_response = requests.get(
-                        f"https://ai.comfly.chat/suno/feed/{','.join(clip_ids)}",
+                        f"{baseurl}/suno/feed/{','.join(clip_ids)}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -8508,7 +8553,7 @@ class Comfly_suno_lyrics:
                 payload["seed"] = seed
 
             response = requests.post(
-                "https://ai.comfly.chat/suno/generate/lyrics/",
+                f"{baseurl}/suno/generate/lyrics/",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -8540,7 +8585,7 @@ class Comfly_suno_lyrics:
                 
                 try:
                     lyrics_response = requests.get(
-                        f"https://ai.comfly.chat/suno/lyrics/{task_id}",
+                        f"{baseurl}/suno/lyrics/{task_id}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -8655,7 +8700,7 @@ class Comfly_suno_custom:
             pbar.update_absolute(10)
             
             response = requests.post(
-                "https://ai.comfly.chat/suno/generate",
+                f"{baseurl}/suno/generate",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -8709,7 +8754,7 @@ class Comfly_suno_custom:
                 
                 try:
                     clip_response = requests.get(
-                        f"https://ai.comfly.chat/suno/feed/{','.join(clip_ids)}",
+                        f"{baseurl}/suno/feed/{','.join(clip_ids)}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -8822,6 +8867,7 @@ class Comfly_suno_custom:
 WEB_DIRECTORY = "./web"    
         
 NODE_CLASS_MAPPINGS = {
+    "Comfly_api_set": Comfly_api_set,
     "Comfly_Mj": Comfly_Mj,
     "Comfly_mjstyle": Comfly_mjstyle,
     "Comfly_upload": Comfly_upload,
@@ -8862,6 +8908,7 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "Comfly_api_set": "Comfly API Settings",
     "Comfly_Mj": "Comfly_Mj", 
     "Comfly_mjstyle": "Comfly_mjstyle",
     "Comfly_upload": "Comfly_upload",
