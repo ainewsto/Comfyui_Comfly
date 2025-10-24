@@ -27,6 +27,11 @@
 
 # 更新 Update：
 
+20251024:
+
+`Comfly_sora2_openai:节点`: 新增sora2视频官方格式节点，Comfly_sora2，Comfly_sora2_openai两个节点请求可以在我的api
+网站的异步任务里面查看具体进度和情况，失败会退回钱。Comfly_sora2_chat是chat兼容格式，无法在异步任务查看，但可以在comfyui后台找到Found data preview URL: https://asyncdata.net/web/task_01k8afznmffp1bbdypg5htznb4类似这个请求成功后会显示的链接，点进去就能查看任务进度，链接长期有效。但任务失败了无法退回钱！请仔细选择自己合适的节点。
+
 2025103:
 
 `Comfly_sora2_chat:节点`: 新增sora2视频chat格式节点，可以导出gif文件。

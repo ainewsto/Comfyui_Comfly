@@ -5995,6 +5995,201 @@ class ComflyChatGPTApi:
                 return (blank_tensor, error_message, "", self.format_conversation_history())
 
 
+class Comfly_sora2_openai:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "model": (["sora-2", "sora-2-pro"], {"default": "sora-2"}),
+            },
+            "optional": {
+                "apikey": ("STRING", {"default": ""}),
+                "seconds": (["10", "15", "25"], {"default": "15"}),
+                "size": (["1280x720", "720x1280", "1792x1024", "1024x1792"], {"default": "1280x720"}),
+                "image": ("IMAGE",),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})
+            }
+        }
+    
+    RETURN_TYPES = (IO.VIDEO, "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("video", "response", "video_url", "seed")
+    FUNCTION = "process"
+    CATEGORY = "Comfly/Openai"
+
+    def __init__(self):
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 900
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+    
+    def image_to_base64(self, image_tensor):
+        """Convert tensor to base64 string"""
+        if image_tensor is None:
+            return None
+            
+        pil_image = tensor2pil(image_tensor)[0]
+        buffered = BytesIO()
+        pil_image.save(buffered, format="PNG")
+        return base64.b64encode(buffered.getvalue()).decode('utf-8')
+    
+    def process(self, prompt, model, apikey="", seconds="15", size="1280x720", image=None, seed=0):
+        if apikey.strip():
+            self.api_key = apikey
+            config = get_config()
+            config['api_key'] = apikey
+            save_config(config)
+            
+        if not self.api_key:
+            error_response = {"status": "error", "message": "API key not provided or not found in config"}
+            return ("", json.dumps(error_response), "", "0")
+
+        if model == "sora-2":
+            if seconds == "25":  
+                error_message = "The sora-2 model does not support 25 second videos. Please use sora-2-pro for 25 second videos."
+                print(error_message)
+                return ("", json.dumps({"status": "error", "message": error_message}), "", "0")
+            if size in ["1792x1024", "1024x1792"]:
+                error_message = "The sora-2 model does not support 1080P resolution. Please use sora-2-pro for 1080P videos."
+                print(error_message)
+                return ("", json.dumps({"status": "error", "message": error_message}), "", "0")
+      
+        pbar = comfy.utils.ProgressBar(100)
+        pbar.update_absolute(10)
+        
+        try:
+            data = {
+                "model": model,
+                "prompt": prompt,
+                "seconds": seconds,
+                "size": size
+            }
+            
+            if seed > 0:
+                data["seed"] = str(seed)
+                
+            files = []
+
+            if image is not None:
+                pil_image = tensor2pil(image)[0]
+                buffered = BytesIO()
+                pil_image.save(buffered, format="PNG")
+                buffered.seek(0)
+                files.append(('input_reference', ('image.png', buffered, 'image/png')))
+            
+            headers = {"Authorization": f"Bearer {self.api_key}"}
+            
+            pbar.update_absolute(20)
+
+            response = requests.post(
+                "https://ai.comfly.chat/v1/videos",
+                headers=headers,
+                data=data,
+                files=files,
+                timeout=self.timeout
+            )
+            
+            if response.status_code != 200:
+                error_message = f"API Error: {response.status_code} - {response.text}"
+                print(error_message)
+                return ("", json.dumps({"status": "error", "message": error_message}), "", "0")
+                
+            result = response.json()
+            
+            if "id" not in result:
+                error_message = "No task ID in API response"
+                print(error_message)
+                return ("", json.dumps({"status": "error", "message": error_message}), "", "0")
+            
+            task_id = result["id"]
+            print(f"Task ID: {task_id}")
+            
+            pbar.update_absolute(30)
+
+            max_attempts = 120  
+            attempts = 0
+            video_url = None
+            actual_seed = str(seed) if seed > 0 else "0"
+            
+            while attempts < max_attempts:
+                time.sleep(10)
+                attempts += 1
+                
+                try:
+                    status_response = requests.get(
+                        f"https://ai.comfly.chat/v1/videos/{task_id}",
+                        headers=self.get_headers(),
+                        timeout=self.timeout
+                    )
+                    
+                    if status_response.status_code != 200:
+                        continue
+                        
+                    status_data = status_response.json()
+
+                    progress = status_data.get("progress", 0)
+                    try:
+                        progress_int = int(progress)
+                        pbar_value = min(90, 30 + int(progress_int * 0.6))
+                        pbar.update_absolute(pbar_value)
+                    except (ValueError, TypeError):
+                        progress_value = min(80, 30 + (attempts * 50 // max_attempts))
+                        pbar.update_absolute(progress_value)
+                    
+                    status = status_data.get("status", "")
+                    
+                    if status == "completed":
+                        video_url = status_data.get("video_url")
+                        if not video_url and "url" in status_data:
+                            video_url = status_data.get("url")
+
+                        if "seed" in status_data:
+                            actual_seed = str(status_data.get("seed", "0"))
+                        
+                        break
+                    elif status == "failed":
+                        fail_reason = status_data.get("fail_reason", "Unknown error")
+                        error_message = f"Video generation failed: {fail_reason}"
+                        print(error_message)
+                        return ("", json.dumps({"status": "error", "message": error_message, "task_id": task_id}), "", actual_seed)
+                        
+                except Exception as e:
+                    print(f"Error checking task status: {str(e)}")
+            
+            if not video_url:
+                error_message = f"Failed to get video URL after {max_attempts} attempts"
+                print(error_message)
+                return ("", json.dumps({"status": "error", "message": error_message, "task_id": task_id}), "", actual_seed)
+            
+            video_adapter = ComflyVideoAdapter(video_url)
+            
+            pbar.update_absolute(100)
+            
+            response_data = {
+                "status": "success",
+                "task_id": task_id,
+                "prompt": prompt,
+                "model": model,
+                "size": size,
+                "seconds": seconds,
+                "video_url": video_url,
+                "seed": actual_seed
+            }
+            
+            return (video_adapter, json.dumps(response_data), video_url, actual_seed)
+            
+        except Exception as e:
+            error_message = f"Error in video generation: {str(e)}"
+            print(error_message)
+            import traceback
+            traceback.print_exc()
+            return ("", json.dumps({"status": "error", "message": error_message}), "", "0")
+            
+
 class Comfly_sora2:
     @classmethod
     def INPUT_TYPES(cls):
@@ -9114,6 +9309,7 @@ NODE_CLASS_MAPPINGS = {
     "ComflyGeminiAPI": ComflyGeminiAPI,
     "ComflySeededit": ComflySeededit,
     "ComflyChatGPTApi": ComflyChatGPTApi,
+    "Comfly_sora2_openai": Comfly_sora2_openai, 
     "Comfly_sora2": Comfly_sora2, 
     "Comfly_sora2_chat": Comfly_sora2_chat, 
     "ComflyJimengApi": ComflyJimengApi, 
@@ -9156,6 +9352,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "ComflyGeminiAPI": "Comfly Gemini API",
     "ComflySeededit": "Comfly Doubao SeedEdit2.0",
     "ComflyChatGPTApi": "Comfly ChatGPT Api",
+    "Comfly_sora2_openai": "Comfly_sora2_openai", 
     "Comfly_sora2": "Comfly_sora2", 
     "Comfly_sora2_chat": "Comfly_sora2_chat", 
     "ComflyJimengApi": "Comfly Jimeng API", 
