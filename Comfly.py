@@ -6008,7 +6008,8 @@ class Comfly_sora2_openai:
                 "seconds": (["10", "15", "25"], {"default": "15"}),
                 "size": (["1280x720", "720x1280", "1792x1024", "1024x1792"], {"default": "1280x720"}),
                 "image": ("IMAGE",),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
+                "private": ("BOOLEAN", {"default": True})
             }
         }
     
@@ -6037,7 +6038,7 @@ class Comfly_sora2_openai:
         pil_image.save(buffered, format="PNG")
         return base64.b64encode(buffered.getvalue()).decode('utf-8')
     
-    def process(self, prompt, model, apikey="", seconds="15", size="1280x720", image=None, seed=0):
+    def process(self, prompt, model, apikey="", seconds="15", size="1280x720", image=None, seed=0, private=True):
         if apikey.strip():
             self.api_key = apikey
             config = get_config()
@@ -6066,7 +6067,8 @@ class Comfly_sora2_openai:
                 "model": model,
                 "prompt": prompt,
                 "seconds": seconds,
-                "size": size
+                "size": size,
+                "private": private
             }
             
             if seed > 0:
@@ -6176,6 +6178,7 @@ class Comfly_sora2_openai:
                 "model": model,
                 "size": size,
                 "seconds": seconds,
+                "private": private,
                 "video_url": video_url,
                 "seed": actual_seed
             }
@@ -6188,7 +6191,7 @@ class Comfly_sora2_openai:
             import traceback
             traceback.print_exc()
             return ("", json.dumps({"status": "error", "message": error_message}), "", "0")
-            
+           
 
 class Comfly_sora2:
     @classmethod
@@ -6207,7 +6210,8 @@ class Comfly_sora2:
                 "image2": ("IMAGE",),
                 "image3": ("IMAGE",),
                 "image4": ("IMAGE",),
-                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
+                "private": ("BOOLEAN", {"default": True})
             }
         }
     
@@ -6238,7 +6242,7 @@ class Comfly_sora2:
         return f"data:image/png;base64,{base64_str}"
     
     def process(self, prompt, model, aspect_ratio="16:9", duration="10", hd=False, apikey="", 
-                image1=None, image2=None, image3=None, image4=None, seed=0):
+                image1=None, image2=None, image3=None, image4=None, seed=0, private=True):
         if apikey.strip():
             self.api_key = apikey
             config = get_config()
@@ -6289,7 +6293,8 @@ class Comfly_sora2:
                     "images": images,
                     "aspect_ratio": aspect_ratio,
                     "duration": duration,
-                    "hd": hd
+                    "hd": hd,
+                    "private": private
                 }
                 
                 if seed > 0:
@@ -6302,7 +6307,8 @@ class Comfly_sora2:
                     "model": model,
                     "aspect_ratio": aspect_ratio,
                     "duration": duration,
-                    "hd": hd
+                    "hd": hd,
+                    "private": private
                 }
                 
                 if seed > 0:
@@ -6399,6 +6405,7 @@ class Comfly_sora2:
                 "aspect_ratio": aspect_ratio,
                 "duration": duration,
                 "hd": hd,
+                "private": private,
                 "video_url": video_url
             }
             

@@ -27,6 +27,12 @@
 
 # 更新 Update：
 
+20251105:
+
+`Comfly_sora2和Comfly_sora2_openai:节点`:
+
+Comfly_sora2和Comfly_sora2_openai节点都新增一个可选择参数private开关按钮，是否隐藏视频，true开启就是视频不会发布，同时视频无法进行 remix(二次编辑)， 关闭为 false，默认为true开启
+
 20251024:
 
 `Comfly_sora2_openai:节点`: 新增sora2视频官方格式节点，Comfly_sora2，Comfly_sora2_openai两个节点请求可以在我的api
