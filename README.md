@@ -27,6 +27,17 @@
 
 # 更新 Update：
 
+20251110:
+
+`Comfly_suno_cover，Comfly_suno_upload_extend，Comfly_suno_upload:节点`:
+
+Comfly_suno_upload：上传自己的音频文件，获取clip_ip,用于Comfly_suno_cover和Comfly_suno_upload_extend节点。上传音频时长必须在6s-60s内。
+
+Comfly_suno_cover：音乐翻版\修改风格，输入clip_ip(可以是自己上传的，或者在平台生成的音乐的。
+自己上传的有可能因为跨账号问题不生效。)
+
+Comfly_suno_upload_extend：音频续写，输入clip_ip(可以是自己上传的，或者在平台生成的音乐的)
+
 20251105:
 
 `Comfly_sora2和Comfly_sora2_openai:节点`:
