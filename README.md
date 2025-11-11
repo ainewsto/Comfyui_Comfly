@@ -27,6 +27,11 @@
 
 # 更新 Update：
 
+20251111:
+
+`Comfly Sora2 Character:节点`: 新增sora2视频Comfly Sora2 Character角色客串节点，使用方式是把生成后的username用于放在提示词中 @username 直接调用。可同时使用多个角色客串调用。 
+
+
 20251110:
 
 `Comfly_suno_cover，Comfly_suno_upload_extend，Comfly_suno_upload:节点`:

@@ -6652,6 +6652,139 @@ class Comfly_sora2_chat:
             return ("", "", "", json.dumps({"status": "error", "message": error_message}))
 
 
+class Comfly_sora2_character:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "video_url": ("STRING", {"multiline": False}),
+                "timestamps": ("STRING", {"default": "1,3", "multiline": False}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
+            },
+            "optional": {
+                "api_key": ("STRING", {"default": ""}),
+            }
+        }
+    
+    RETURN_TYPES = ("STRING", "STRING", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("character_id", "username", "permalink", "profile_picture_url", "response")
+    FUNCTION = "create_character"
+    CATEGORY = "Comfly/Openai"
+
+    def __init__(self):
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 300
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+    
+    def create_character(self, video_url, timestamps="1,3", seed=0, api_key=""):
+        if api_key.strip():
+            self.api_key = api_key
+            config = get_config()
+            config['api_key'] = api_key
+            save_config(config)
+            
+        if not self.api_key:
+            error_response = {"status": "error", "message": "API key not provided or not found in config"}
+            return ("", "", "", "", json.dumps(error_response))
+            
+        try:
+            if not timestamps or "," not in timestamps:
+                error_message = "Timestamps must be in format 'start,end' (e.g. '1,3')"
+                print(error_message)
+                return ("", "", "", "", json.dumps({"status": "error", "message": error_message}))
+            
+            try:
+                start_time, end_time = map(float, timestamps.split(","))
+                duration = end_time - start_time
+
+                if duration < 1:
+                    error_message = "Duration must be at least 1 second (minimum difference between start and end)"
+                    print(error_message)
+                    return ("", "", "", "", json.dumps({"status": "error", "message": error_message}))
+                    
+                if duration > 3:
+                    error_message = "Duration must be at most 3 seconds (maximum difference between start and end)"
+                    print(error_message)
+                    return ("", "", "", "", json.dumps({"status": "error", "message": error_message}))
+                    
+            except ValueError:
+                error_message = "Invalid timestamps format. Use numbers separated by comma (e.g. '1.5,3.2')"
+                print(error_message)
+                return ("", "", "", "", json.dumps({"status": "error", "message": error_message}))
+
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(10)
+            
+            payload = {
+                "url": video_url,
+                "timestamps": timestamps
+            }
+            
+            if seed > 0:
+                payload["seed"] = seed
+                
+            pbar.update_absolute(30)
+            
+            response = requests.post(
+                f"{baseurl}/sora/v1/characters",
+                headers=self.get_headers(),
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            pbar.update_absolute(60)
+            
+            if response.status_code != 200:
+                error_message = f"API Error: {response.status_code} - {response.text}"
+                print(error_message)
+                return ("", "", "", "", json.dumps({"status": "error", "message": error_message}))
+                
+            result = response.json()
+            
+            pbar.update_absolute(90)
+
+            character_id = result.get("id", "")
+            username = result.get("username", "")
+            permalink = result.get("permalink", "")
+            profile_picture_url = result.get("profile_picture_url", "")
+            
+            if not character_id:
+                error_message = "No character ID returned from API"
+                print(error_message)
+                return ("", "", "", "", json.dumps({"status": "error", "message": error_message}))
+            
+            pbar.update_absolute(100)
+            
+            response_data = {
+                "status": "success",
+                "character_id": character_id,
+                "username": username,
+                "permalink": permalink,
+                "profile_picture_url": profile_picture_url,
+                "video_url": video_url,
+                "timestamps": timestamps,
+                "duration": f"{duration:.1f}s",
+                "seed": seed if seed > 0 else "auto"
+            }
+            
+            print(f"Character created successfully. ID: {character_id}, Username: {username}")
+            
+            return (character_id, username, permalink, profile_picture_url, json.dumps(response_data))
+            
+        except Exception as e:
+            error_message = f"Error creating character: {str(e)}"
+            print(error_message)
+            import traceback
+            traceback.print_exc()
+            return ("", "", "", "", json.dumps({"status": "error", "message": error_message}))
+
+            
+
 ############################# Flux ###########################
 
 class Comfly_Flux_Kontext:
@@ -10013,6 +10146,7 @@ NODE_CLASS_MAPPINGS = {
     "Comfly_sora2_openai": Comfly_sora2_openai, 
     "Comfly_sora2": Comfly_sora2, 
     "Comfly_sora2_chat": Comfly_sora2_chat, 
+    "Comfly_sora2_character": Comfly_sora2_character,  
     "ComflyJimengApi": ComflyJimengApi, 
     "Comfly_gpt_image_1_edit": Comfly_gpt_image_1_edit,
     "Comfly_gpt_image_1": Comfly_gpt_image_1,
@@ -10059,6 +10193,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_sora2_openai": "Comfly_sora2_openai", 
     "Comfly_sora2": "Comfly_sora2", 
     "Comfly_sora2_chat": "Comfly_sora2_chat", 
+    "Comfly_sora2_character": "Comfly Sora2 Character",  
     "ComflyJimengApi": "Comfly Jimeng API", 
     "Comfly_gpt_image_1_edit": "Comfly_gpt_image_1_edit",
     "Comfly_gpt_image_1": "Comfly_gpt_image_1", 
