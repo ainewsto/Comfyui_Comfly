@@ -27,6 +27,11 @@
 
 # 更新 Update：
 
+20251121:
+
+`Comfly_nano_banana2-edit:节点`: 新增nano-banana-2模型，可以设置尺寸和1K,2K,4K（目前价格都一样，后续可能会有调整，请关注Q群）
+
+
 20251120:
 
 `Comfly_nano_banana:节点`: 新增gemini-3-pro-image-preview模型。

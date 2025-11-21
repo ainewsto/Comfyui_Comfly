@@ -7582,7 +7582,7 @@ class Comfly_nano_banana:
         return {
             "required": {
                 "text": ("STRING", {"multiline": True}),
-                "model": (["gemini-3-pro-image-preview", "gemini-2.5-flash-image", "nano-banana", "nano-banana-hd", "gemini-2.5-flash-image-preview"], {"default": "nano-banana"}),
+                "model": (["nano-banana-2","gemini-3-pro-image-preview", "gemini-2.5-flash-image", "nano-banana", "nano-banana-hd", "gemini-2.5-flash-image-preview"], {"default": "nano-banana"}),
             },
             "optional": {
                 "image1": ("IMAGE",),
@@ -8235,6 +8235,221 @@ class Comfly_nano_banana_edit:
             return (blank_tensor, error_message)
 
 
+class Comfly_nano_banana2_edit:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "mode": (["text2img", "img2img"], {"default": "text2img"}),
+                "model": (["nano-banana-2"], {"default": "nano-banana-2"}),
+                "aspect_ratio": (["16:9", "4:3", "4:5", "3:2", "1:1", "2:3", "3:4", "5:4", "9:16", "21:9"], {"default": "1:1"}),
+                "image_size": (["1K", "2K", "4K"], {"default": "2K"}),
+            },
+            "optional": {
+                "image1": ("IMAGE",),
+                "image2": ("IMAGE",),
+                "image3": ("IMAGE",),
+                "image4": ("IMAGE",),
+                "image5": ("IMAGE",),
+                "image6": ("IMAGE",),
+                "image7": ("IMAGE",),
+                "image8": ("IMAGE",),
+                "image9": ("IMAGE",),
+                "image10": ("IMAGE",),
+                "image11": ("IMAGE",),
+                "image12": ("IMAGE",),
+                "image13": ("IMAGE",),
+                "image14": ("IMAGE",),
+                "apikey": ("STRING", {"default": ""}),
+                "response_format": (["url", "b64_json"], {"default": "url"}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647})  
+            }
+        }
+    
+    RETURN_TYPES = ("IMAGE", "STRING")
+    RETURN_NAMES = ("image", "response")
+    FUNCTION = "generate_image"
+    CATEGORY = "Comfly/Google"
+
+    def __init__(self):
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 600
+
+    def get_headers(self):
+        return {
+            "Authorization": f"Bearer {self.api_key}"
+        }
+    
+    def image_to_base64(self, image_tensor):
+        """Convert tensor to base64 string"""
+        if image_tensor is None:
+            return None
+            
+        pil_image = tensor2pil(image_tensor)[0]
+        buffered = BytesIO()
+        pil_image.save(buffered, format="PNG")
+        return base64.b64encode(buffered.getvalue()).decode('utf-8')
+    
+    def generate_image(self, prompt, mode="text2img", model="nano-banana-2", aspect_ratio="1:1", 
+                      image_size="2K", image1=None, image2=None, image3=None, image4=None,
+                      image5=None, image6=None, image7=None, image8=None, image9=None, 
+                      image10=None, image11=None, image12=None, image13=None, image14=None,
+                      apikey="", response_format="url", seed=0):
+        if apikey.strip():
+            self.api_key = apikey
+            config = get_config()
+            config['api_key'] = apikey
+            save_config(config)
+            
+        if not self.api_key:
+            error_message = "API key not found in Comflyapi.json"
+            print(error_message)
+            blank_image = Image.new('RGB', (1024, 1024), color='white')
+            blank_tensor = pil2tensor(blank_image)
+            return (blank_tensor, error_message)
+            
+        try:
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(10)
+
+            final_prompt = prompt
+            
+            if mode == "text2img":
+                headers = self.get_headers()
+                headers["Content-Type"] = "application/json"
+                
+                payload = {
+                    "prompt": final_prompt,
+                    "model": model,
+                    "aspect_ratio": aspect_ratio,
+                    "image_size": image_size
+                }
+                    
+                if response_format:
+                    payload["response_format"] = response_format
+
+                if seed > 0:
+                    payload["seed"] = seed
+                
+                print(f"Payload: {json.dumps(payload, indent=2)}")
+                
+                response = requests.post(
+                    f"{baseurl}/v1/images/generations",
+                    headers=headers,
+                    json=payload,
+                    timeout=self.timeout
+                )
+            else:
+                headers = self.get_headers()
+
+                all_images = [image1, image2, image3, image4, image5, image6, image7, 
+                             image8, image9, image10, image11, image12, image13, image14]
+                
+                files = []
+                image_count = 0
+                for img in all_images:
+                    if img is not None:
+                        pil_img = tensor2pil(img)[0]
+                        buffered = BytesIO()
+                        pil_img.save(buffered, format="PNG")
+                        buffered.seek(0)
+                        files.append(('image', (f'image_{image_count}.png', buffered, 'image/png')))
+                        image_count += 1
+                
+                print(f"Processing {image_count} input images")
+                
+                data = {
+                    "prompt": final_prompt,
+                    "model": model,
+                    "aspect_ratio": aspect_ratio,
+                    "image_size": image_size
+                }
+                
+                if response_format:
+                    data["response_format"] = response_format
+
+                if seed > 0:
+                    data["seed"] = str(seed)
+               
+                response = requests.post(
+                    f"{baseurl}/v1/images/edits",
+                    headers=headers,
+                    data=data,
+                    files=files,
+                    timeout=self.timeout
+                )
+            
+            pbar.update_absolute(50)
+            
+            if response.status_code != 200:
+                error_message = f"API Error: {response.status_code} - {response.text}"
+                print(error_message)
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, error_message)
+                
+            result = response.json()
+            
+            if "data" not in result or not result["data"]:
+                error_message = "No image data in response"
+                print(error_message)
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, error_message)
+            
+            generated_tensors = []
+            response_info = f"Generated {len(result['data'])} images using {model}\n"
+            response_info += f"Image size: {image_size}\n"
+            response_info += f"Aspect ratio: {aspect_ratio}\n"
+            
+            if mode == "img2img":
+                response_info += f"Input images: {image_count}\n"
+
+            if seed > 0:
+                response_info += f"Seed: {seed}\n"
+            
+            for i, item in enumerate(result["data"]):
+                pbar.update_absolute(50 + (i+1) * 40 // len(result["data"]))
+                
+                if "b64_json" in item:
+                    image_data = base64.b64decode(item["b64_json"])
+                    generated_image = Image.open(BytesIO(image_data))
+                    generated_tensor = pil2tensor(generated_image)
+                    generated_tensors.append(generated_tensor)
+                    response_info += f"Image {i+1}: Base64 data\n"
+                elif "url" in item:
+                    image_url = item["url"]
+                    response_info += f"Image {i+1}: {image_url}\n"
+                    try:
+                        img_response = requests.get(image_url, timeout=self.timeout)
+                        img_response.raise_for_status()
+                        generated_image = Image.open(BytesIO(img_response.content))
+                        generated_tensor = pil2tensor(generated_image)
+                        generated_tensors.append(generated_tensor)
+                    except Exception as e:
+                        print(f"Error downloading image from URL: {str(e)}")
+            
+            pbar.update_absolute(100)
+            
+            if generated_tensors:
+                combined_tensor = torch.cat(generated_tensors, dim=0)
+                return (combined_tensor, response_info)
+            else:
+                error_message = "Failed to process any images"
+                print(error_message)
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                blank_tensor = pil2tensor(blank_image)
+                return (blank_tensor, error_message)
+            
+        except Exception as e:
+            error_message = f"Error in image generation: {str(e)}"
+            print(error_message)
+            import traceback
+            traceback.print_exc()
+            blank_image = Image.new('RGB', (1024, 1024), color='white')
+            blank_tensor = pil2tensor(blank_image)
+            return (blank_tensor, error_message)
 
  ############################# Qwen ###########################
 
@@ -10171,7 +10386,8 @@ NODE_CLASS_MAPPINGS = {
     "Comfly_suno_cover": Comfly_suno_cover,
     "Comfly_nano_banana": Comfly_nano_banana,
     "Comfly_nano_banana_fal": Comfly_nano_banana_fal,
-    "Comfly_nano_banana_edit": Comfly_nano_banana_edit
+    "Comfly_nano_banana_edit": Comfly_nano_banana_edit,
+    "Comfly_nano_banana2_edit": Comfly_nano_banana2_edit
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -10218,7 +10434,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "Comfly_suno_cover": "Comfly Suno Cover",
     "Comfly_nano_banana": "Comfly_nano_banana",
     "Comfly_nano_banana_fal": "Comfly_nano_banana_fal",
-    "Comfly_nano_banana_edit": "Comfly_nano_banana_edit"
+    "Comfly_nano_banana_edit": "Comfly_nano_banana_edit",
+    "Comfly_nano_banana2_edit": "Comfly_nano_banana2_edit"
 }
 
 
