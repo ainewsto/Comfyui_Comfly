@@ -8243,7 +8243,7 @@ class Comfly_nano_banana2_edit:
                 "prompt": ("STRING", {"multiline": True}),
                 "mode": (["text2img", "img2img"], {"default": "text2img"}),
                 "model": (["nano-banana-2"], {"default": "nano-banana-2"}),
-                "aspect_ratio": (["16:9", "4:3", "4:5", "3:2", "1:1", "2:3", "3:4", "5:4", "9:16", "21:9"], {"default": "1:1"}),
+                "aspect_ratio": (["auto", "16:9", "4:3", "4:5", "3:2", "1:1", "2:3", "3:4", "5:4", "9:16", "21:9"], {"default": "auto"}),
                 "image_size": (["1K", "2K", "4K"], {"default": "2K"}),
             },
             "optional": {
@@ -8267,8 +8267,8 @@ class Comfly_nano_banana2_edit:
             }
         }
     
-    RETURN_TYPES = ("IMAGE", "STRING")
-    RETURN_NAMES = ("image", "response")
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING")
+    RETURN_NAMES = ("image", "response", "image_url")
     FUNCTION = "generate_image"
     CATEGORY = "Comfly/Google"
 
@@ -8291,7 +8291,7 @@ class Comfly_nano_banana2_edit:
         pil_image.save(buffered, format="PNG")
         return base64.b64encode(buffered.getvalue()).decode('utf-8')
     
-    def generate_image(self, prompt, mode="text2img", model="nano-banana-2", aspect_ratio="1:1", 
+    def generate_image(self, prompt, mode="text2img", model="nano-banana-2", aspect_ratio="auto", 
                       image_size="2K", image1=None, image2=None, image3=None, image4=None,
                       image5=None, image6=None, image7=None, image8=None, image9=None, 
                       image10=None, image11=None, image12=None, image13=None, image14=None,
@@ -8307,7 +8307,7 @@ class Comfly_nano_banana2_edit:
             print(error_message)
             blank_image = Image.new('RGB', (1024, 1024), color='white')
             blank_tensor = pil2tensor(blank_image)
-            return (blank_tensor, error_message)
+            return (blank_tensor, error_message, "")
             
         try:
             pbar = comfy.utils.ProgressBar(100)
@@ -8331,9 +8331,7 @@ class Comfly_nano_banana2_edit:
 
                 if seed > 0:
                     payload["seed"] = seed
-                
-                print(f"Payload: {json.dumps(payload, indent=2)}")
-                
+                           
                 response = requests.post(
                     f"{baseurl}/v1/images/generations",
                     headers=headers,
@@ -8387,7 +8385,7 @@ class Comfly_nano_banana2_edit:
                 print(error_message)
                 blank_image = Image.new('RGB', (1024, 1024), color='white')
                 blank_tensor = pil2tensor(blank_image)
-                return (blank_tensor, error_message)
+                return (blank_tensor, error_message, "")
                 
             result = response.json()
             
@@ -8396,9 +8394,10 @@ class Comfly_nano_banana2_edit:
                 print(error_message)
                 blank_image = Image.new('RGB', (1024, 1024), color='white')
                 blank_tensor = pil2tensor(blank_image)
-                return (blank_tensor, error_message)
+                return (blank_tensor, error_message, "")
             
             generated_tensors = []
+            image_urls = []
             response_info = f"Generated {len(result['data'])} images using {model}\n"
             response_info += f"Image size: {image_size}\n"
             response_info += f"Aspect ratio: {aspect_ratio}\n"
@@ -8420,6 +8419,7 @@ class Comfly_nano_banana2_edit:
                     response_info += f"Image {i+1}: Base64 data\n"
                 elif "url" in item:
                     image_url = item["url"]
+                    image_urls.append(image_url)
                     response_info += f"Image {i+1}: {image_url}\n"
                     try:
                         img_response = requests.get(image_url, timeout=self.timeout)
@@ -8434,13 +8434,14 @@ class Comfly_nano_banana2_edit:
             
             if generated_tensors:
                 combined_tensor = torch.cat(generated_tensors, dim=0)
-                return (combined_tensor, response_info)
+                first_image_url = image_urls[0] if image_urls else ""
+                return (combined_tensor, response_info, first_image_url)
             else:
                 error_message = "Failed to process any images"
                 print(error_message)
                 blank_image = Image.new('RGB', (1024, 1024), color='white')
                 blank_tensor = pil2tensor(blank_image)
-                return (blank_tensor, error_message)
+                return (blank_tensor, error_message, "")
             
         except Exception as e:
             error_message = f"Error in image generation: {str(e)}"
@@ -8449,7 +8450,8 @@ class Comfly_nano_banana2_edit:
             traceback.print_exc()
             blank_image = Image.new('RGB', (1024, 1024), color='white')
             blank_tensor = pil2tensor(blank_image)
-            return (blank_tensor, error_message)
+            return (blank_tensor, error_message, "")
+
 
  ############################# Qwen ###########################
 
