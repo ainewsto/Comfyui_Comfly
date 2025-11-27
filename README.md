@@ -27,6 +27,11 @@
 
 # 更新 Update：
 
+20251127:
+
+`vidu，flux2节点`: 新增Comfly_Flux_2_Flex，Comfly_Flux_2_Pro，Comfly_vidu_img2video，Comfly_vidu_text2video，Comfly_vidu_ref2video，Comfly_vidu_start-end2video节点。
+
+
 20251121:
 
 `Comfly_nano_banana2-edit:节点`: 新增nano-banana-2模型，可以设置尺寸和1K,2K,4K（目前价格都一样，后续可能会有调整，请关注Q群）
