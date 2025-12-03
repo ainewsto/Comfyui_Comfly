@@ -8678,7 +8678,7 @@ class Comfly_nano_banana2_edit:
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
                 "mode": (["text2img", "img2img"], {"default": "text2img"}),
-                "model": (["nano-banana-2"], {"default": "nano-banana-2"}),
+                "model": (["nano-banana-2", "nano-banana-2-2k", "nano-banana-2-4k"], {"default": "nano-banana-2"}),
                 "aspect_ratio": (["auto", "16:9", "4:3", "4:5", "3:2", "1:1", "2:3", "3:4", "5:4", "9:16", "21:9"], {"default": "auto"}),
                 "image_size": (["1K", "2K", "4K"], {"default": "2K"}),
             },
@@ -8758,9 +8758,11 @@ class Comfly_nano_banana2_edit:
                 payload = {
                     "prompt": final_prompt,
                     "model": model,
-                    "aspect_ratio": aspect_ratio,
-                    "image_size": image_size
+                    "aspect_ratio": aspect_ratio
                 }
+
+                if model == "nano-banana-2":
+                    payload["image_size"] = image_size
                     
                 if response_format:
                     payload["response_format"] = response_format
@@ -8796,9 +8798,11 @@ class Comfly_nano_banana2_edit:
                 data = {
                     "prompt": final_prompt,
                     "model": model,
-                    "aspect_ratio": aspect_ratio,
-                    "image_size": image_size
+                    "aspect_ratio": aspect_ratio
                 }
+                
+                if model == "nano-banana-2":
+                    data["image_size"] = image_size
                 
                 if response_format:
                     data["response_format"] = response_format
@@ -8835,7 +8839,10 @@ class Comfly_nano_banana2_edit:
             generated_tensors = []
             image_urls = []
             response_info = f"Generated {len(result['data'])} images using {model}\n"
-            response_info += f"Image size: {image_size}\n"
+
+            if model == "nano-banana-2":
+                response_info += f"Image size: {image_size}\n"
+            
             response_info += f"Aspect ratio: {aspect_ratio}\n"
             
             if mode == "img2img":

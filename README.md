@@ -27,6 +27,12 @@
 
 # 更新 Update：
 
+20251203:
+
+`Comfly_nano_banana2-edit:节点`: 新增nano-banana-2-2k，nano-banana-2-4k模型，当选择这2个模型的时候，image_size参数（1K,2K,4K）不生效。
+因为结尾带2k就会生成2k，带4k就会生成4k。
+
+
 20251127:
 
 `vidu，flux2节点`: 新增Comfly_Flux_2_Flex，Comfly_Flux_2_Pro，Comfly_vidu_img2video，Comfly_vidu_text2video，Comfly_vidu_ref2video，Comfly_vidu_start-end2video节点。
