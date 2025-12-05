@@ -27,6 +27,12 @@
 
 # 更新 Update：
 
+
+20251205:
+
+`Comfly_Z_image_turbo:节点`: 新增Z-image-turbo模型节点。
+
+
 20251203:
 
 `Comfly_nano_banana2-edit:节点`: 新增nano-banana-2-2k，nano-banana-2-4k模型，当选择这2个模型的时候，image_size参数（1K,2K,4K）不生效。
