@@ -1,21 +1,112 @@
-from .Comfly import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS, WEB_DIRECTORY
-from . import AiHelper
+from .comfly_config import Comfly_api_set
+from .nodes.nodes_midjourney import *
+from .nodes.nodes_kling import *
+from .nodes.nodes_google import *
+from .nodes.nodes_doubao import *
+from .nodes.nodes_openai import *
+from .nodes.nodes_flux import *
+from .nodes.nodes_suno import *
+from .nodes.nodes_vidu import *
+from .nodes.nodes_qwen import *
+from .nodes.nodes_MiniMax import *
 
-__all__ = ['AiHelper', 'NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS', 'WEB_DIRECTORY', 'AiHelperExtension']
 
-def start_ai_helper():
-    import threading
-    import subprocess
-    import os
-    import sys
-    import aiohttp
+NODE_CLASS_MAPPINGS = {
+    "Comfly_api_set": Comfly_api_set,
+    "Comfly_Mj": Comfly_Mj,
+    "Comfly_upload": Comfly_upload,
+    "Comfly_Mju": Comfly_Mju,
+    "Comfly_Mjv": Comfly_Mjv,
+    "Comfly_Mj_swap_face": Comfly_Mj_swap_face,
+    "Comfly_kling_text2video": Comfly_kling_text2video,
+    "Comfly_kling_image2video": Comfly_kling_image2video,
+    "Comfly_kling_multi_image2video": Comfly_kling_multi_image2video,
+    "Comfly_video_extend": Comfly_video_extend,
+    "Comfly_lip_sync": Comfly_lip_sync,
+    "ComflySeededit": ComflySeededit,
+    "ComflyChatGPTApi": ComflyChatGPTApi,
+    "Comfly_sora2": Comfly_sora2,
+    "Comfly_sora2_character": Comfly_sora2_character,
+    "ComflyJimengApi": ComflyJimengApi,
+    "Comfly_gpt_image_1_edit": Comfly_gpt_image_1_edit,
+    "Comfly_gpt_image_1": Comfly_gpt_image_1,
+    "ComflyJimengVideoApi": ComflyJimengVideoApi,
+    "Comfly_Flux_Kontext_Edit": Comfly_Flux_Kontext_Edit,
+    "Comfly_Flux_Kontext_bfl": Comfly_Flux_Kontext_bfl,
+    "Comfly_Flux_2_Pro": Comfly_Flux_2_Pro,
+    "Comfly_Flux_2_Flex": Comfly_Flux_2_Flex,
+    "ComflyGoogelVeo3": Comfly_Googel_Veo3,
+    "ComflyNanoBanana": Comfly_nano_banana,
+    "ComflyNanoBananaEdit": Comfly_nano_banana_edit,
+    "ComflyNanoBanana2Edit": Comfly_nano_banana2_edit,
+    "Comfly_mj_video": Comfly_mj_video,
+    "Comfly_mj_video_extend": Comfly_mj_video_extend,
+    "Comfly_qwen_image": Comfly_qwen_image,
+    "Comfly_qwen_image_edit": Comfly_qwen_image_edit,
+    "Comfly_Doubao_Seedream": Comfly_Doubao_Seedream,
+    "Comfly_Doubao_Seedream_4": Comfly_Doubao_Seedream_4,
+    "Comfly_Doubao_Seededit": Comfly_Doubao_Seededit,
+    "Comfly_MiniMax_video": Comfly_MiniMax_video,
+    "Comfly_suno_description": Comfly_suno_description,
+    "Comfly_suno_lyrics": Comfly_suno_lyrics,
+    "Comfly_suno_custom": Comfly_suno_custom,
+    "Comfly_suno_upload": Comfly_suno_upload,
+    "Comfly_suno_upload_extend": Comfly_suno_upload_extend,
+    "Comfly_suno_cover": Comfly_suno_cover,
+    "Comfly_vidu_img2video": Comfly_vidu_img2video,
+    "Comfly_vidu_text2video": Comfly_vidu_text2video,
+    "Comfly_vidu_ref2video": Comfly_vidu_ref2video,
+    "Comfly_vidu_start-end2video": Comfly_vidu_start_end2video,
+}
 
-    def run_ai_helper():
-        ai_helper_path = os.path.join(os.path.dirname(__file__), "AiHelper.py")
-        subprocess.run([sys.executable, ai_helper_path])
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "Comfly_api_set": "Comfly API Settings",
+    "Comfly_Mj": "Comfly_Mj",
+    "Comfly_upload": "Comfly_upload",
+    "Comfly_Mju": "Comfly_Mju",
+    "Comfly_Mjv": "Comfly_Mjv",
+    "Comfly_Mj_swap_face": "Comfly MJ Face Swap",
+    "Comfly_kling_text2video": "Comfly_kling_text2video",
+    "Comfly_kling_image2video": "Comfly_kling_image2video",
+    "Comfly_kling_multi_image2video": "Comfly_kling_multi_image2video",
+    "Comfly_video_extend": "Comfly_video_extend",
+    "Comfly_lip_sync": "Comfly_lip_sync",
+    "ComflySeededit": "Comfly Doubao SeedEdit2.0",
+    "ComflyChatGPTApi": "Comfly ChatGPT Api",
+    "Comfly_sora2": "Comfly_sora2",
+    "Comfly_sora2_character": "Comfly Sora2 Character",
+    "ComflyJimengApi": "Comfly Jimeng API",
+    "Comfly_gpt_image_1_edit": "Comfly_gpt_image_1_edit",
+    "Comfly_gpt_image_1": "Comfly_gpt_image_1",
+    "ComflyJimengVideoApi": "Comfly Jimeng Video API",
+    "Comfly_Flux_Kontext_Edit": "Comfly_Flux_Kontext_Edit",
+    "Comfly_Flux_Kontext_bfl": "Comfly_Flux_Kontext_bfl",
+    "Comfly_Flux_2_Pro": "Comfly_Flux_2_Pro",
+    "Comfly_Flux_2_Flex": "Comfly_Flux_2_Flex",
+    "ComflyGoogelVeo3": "Comfly Google Veo3",
+    "ComflyNanoBanana": "Comfly_nano_banana",
+    "ComflyNanoBananaEdit": "Comfly_nano_banana_edit",
+    "ComflyNanoBanana2Edit": "Comfly_nano_banana2_edit",
+    "Comfly_mj_video": "Comfly MJ Video",
+    "Comfly_mj_video_extend": "Comfly MJ Video Extend",
+    "Comfly_qwen_image": "Comfly_qwen_image",
+    "Comfly_qwen_image_edit": "Comfly_qwen_image_edit",
+    "Comfly_Doubao_Seedream": "Comfly Doubao Seedream3.0",
+    "Comfly_Doubao_Seedream_4": "Comfly Doubao Seedream4.0",
+    "Comfly_Doubao_Seededit": "Comfly Doubao Seededit3.0",
+    "Comfly_MiniMax_video": "Comfly MiniMax Hailuo Video",
+    "Comfly_suno_description": "Comfly Suno Description",
+    "Comfly_suno_lyrics": "Comfly Suno Lyrics",
+    "Comfly_suno_custom": "Comfly Suno Custom",
+    "Comfly_suno_upload": "Comfly Suno Upload",
+    "Comfly_suno_upload_extend": "Comfly Suno Upload Extend",
+    "Comfly_suno_cover": "Comfly Suno Cover",
+    "Comfly_vidu_img2video": "Comfly Vidu Image2Video",
+    "Comfly_vidu_text2video": "Comfly_vidu_text2video",
+    "Comfly_vidu_ref2video": "Comfly_vidu_ref2video",
+    "Comfly_vidu_start-end2video": "Comfly_vidu_start-end2video",
+}
 
-    ai_helper_thread = threading.Thread(target=run_ai_helper)
-    ai_helper_thread.start()
 
-start_ai_helper()
+__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS", "WEB_DIRECTORY"]
 
