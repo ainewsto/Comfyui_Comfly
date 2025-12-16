@@ -1047,3 +1047,107 @@ class Comfly_nano_banana2_edit:
             blank_image = Image.new('RGB', (1024, 1024), color='white')
             blank_tensor = pil2tensor(blank_image)
             return (blank_tensor, error_message, "")
+
+
+class ComflyGeminiTextOnly:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "model": ("STRING", {"default": "gemini-2.5-pro"}),
+            },
+            "optional": {
+                "image": ("IMAGE",),
+                "video": ("VIDEO",),
+                "api_key": ("STRING", {"default": ""}),
+                "temperature": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 2.0, "step": 0.01}),
+                "top_p": ("FLOAT", {"default": 0.95, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "max_tokens": ("INT", {"default": 4096, "min": 1, "max": 8192}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("response",)
+    FUNCTION = "generate_text"
+    CATEGORY = "Comfly-v2/Google"
+
+    def __init__(self):
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 120
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+
+    def tensor_to_base64(self, tensor):
+        if tensor is None:
+            return None
+        if tensor.dtype != torch.uint8:
+            tensor = (tensor * 255).clamp(0, 255).byte()
+        tensor = tensor.cpu()
+        if tensor.shape[-1] == 3:
+            img = Image.fromarray(tensor.numpy(), 'RGB')
+        else:
+            img = Image.fromarray(tensor.numpy(), 'RGBA')
+        buffered = BytesIO()
+        img.save(buffered, format="PNG")
+        return base64.b64encode(buffered.getvalue()).decode('utf-8')
+
+    def generate_text(self, prompt, model, temperature, top_p, max_tokens, seed, image=None, video=None, api_key=""):
+        if api_key.strip():
+            self.api_key = api_key
+            config = get_config()
+            config['api_key'] = api_key
+            save_config(config)
+
+        if not self.api_key:
+            return ("API key not found in Comflyapi.json",)
+
+        try:
+            content = [{"type": "text", "text": prompt}]
+
+            if video is not None:
+                video_url = getattr(video, 'video_url', None)
+                if video_url:
+                    content.append({
+                        "type": "video_url",
+                        "video_url": {"url": video_url}
+                    })
+            elif image is not None:
+                if len(image.shape) == 4:
+                    image = image[0]
+                img_b64 = self.tensor_to_base64(image)
+                if img_b64:
+                    content.append({
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{img_b64}"}
+                    })
+
+            messages = [{"role": "user", "content": content}]
+
+            payload = {
+                "model": model,
+                "messages": messages,
+                "temperature": temperature,
+                "top_p": top_p,
+                "max_tokens": max_tokens,
+                "seed": seed if seed > 0 else None
+            }
+
+            response = requests.post(
+                f"{baseurl}/v1/chat/completions",
+                headers=self.get_headers(),
+                json=payload,
+                timeout=self.timeout
+            )
+            response.raise_for_status()
+            result = response.json()
+            text = result["choices"][0]["message"]["content"]
+            return (text,)
+
+        except Exception as e:
+            return (f"Error: {str(e)}",)

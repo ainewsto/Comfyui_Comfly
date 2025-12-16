@@ -1163,7 +1163,7 @@ class Comfly_sora2_character:
             },
             "optional": {
                 "url": ("STRING", {"default": "", "multiline": False}),
-                "from_task": ("STRING", {"default": "", "multiline": False, "forceInput": True}),
+                "from_task": ("STRING", {"default": "", "multiline": False}),
                 "api_key": ("STRING", {"default": ""}),
             }
         }
@@ -1237,17 +1237,14 @@ class Comfly_sora2_character:
             if url.strip():
                 payload["url"] = url.strip()
                 print(f"Creating character from video URL: {url}")
-            else:
+            elif from_task.strip():
                 payload["from_task"] = from_task.strip()
                 print(f"Creating character from task ID: {from_task}")
-
-            if seed > 0:
-                payload["seed"] = seed
                 
             pbar.update_absolute(30)
             
             print(f"Sending character creation request with payload: {json.dumps(payload)}")
-            
+
             response = requests.post(
                 f"{baseurl}/sora/v1/characters",
                 headers=self.get_headers(),
@@ -1285,14 +1282,14 @@ class Comfly_sora2_character:
                 "permalink": permalink,
                 "profile_picture_url": profile_picture_url,
                 "timestamps": timestamps,
-                "duration": f"{duration:.1f}s",
-                "seed": seed if seed > 0 else "auto",
-                "source": "url" if url.strip() else "from_task"
+                "duration": f"{duration:.1f}s"
             }
 
             if url.strip():
+                response_data["source"] = "url"
                 response_data["url"] = url
             else:
+                response_data["source"] = "from_task"
                 response_data["from_task"] = from_task
             
             print(f"Character created successfully!")

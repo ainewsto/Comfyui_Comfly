@@ -27,6 +27,10 @@
 
 # 更新 Update：
 
+20251216:
+
+`Comfly_sora2_character:节点`: 新增from_task参数输入框：可以直接把sora2生成的真人视频的task id直接输入进去创建角色。
+
 
 20251205:
 
