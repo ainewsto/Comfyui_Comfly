@@ -46,7 +46,7 @@ def downscale_input(image):
     return s
 
 
-class Comfly_gpt_image_1_edit:
+class Comfly_gpt_image_edit:
 
     _last_edited_image = None
     _conversation_history = []
@@ -61,7 +61,7 @@ class Comfly_gpt_image_1_edit:
             "optional": {
                 "mask": ("MASK",),
                 "api_key": ("STRING", {"default": ""}),
-                "model": ("STRING", {"default": "gpt-image-1"}),
+                "model": (["gpt-image-1", "gpt-image-1.5"], {"default": "gpt-image-1"}),
                 "n": ("INT", {"default": 1, "min": 1, "max": 10}),
                 "quality": (["auto", "high", "medium", "low"], {"default": "auto"}),
                 "size": (["auto", "1024x1024", "1536x1024", "1024x1536"], {"default": "auto"}),
@@ -103,10 +103,10 @@ class Comfly_gpt_image_1_edit:
     
     def format_conversation_history(self):
         """Format the conversation history for display"""
-        if not Comfly_gpt_image_1_edit._conversation_history:
+        if not Comfly_gpt_image_edit._conversation_history:
             return ""
         formatted_history = ""
-        for entry in Comfly_gpt_image_1_edit._conversation_history:
+        for entry in Comfly_gpt_image_edit._conversation_history:
             formatted_history += f"**User**: {entry['user']}\n\n"
             formatted_history += f"**AI**: {entry['ai']}\n\n"
             formatted_history += "---\n\n"
@@ -178,19 +178,19 @@ class Comfly_gpt_image_1_edit:
         original_batch_size = image.shape[0]
         use_saved_image = False
 
-        if not clear_chats and Comfly_gpt_image_1_edit._last_edited_image is not None:
+        if not clear_chats and Comfly_gpt_image_edit._last_edited_image is not None:
             if original_batch_size > 1:
-                last_batch_size = Comfly_gpt_image_1_edit._last_edited_image.shape[0]
-                last_image_first = Comfly_gpt_image_1_edit._last_edited_image[0:1]
+                last_batch_size = Comfly_gpt_image_edit._last_edited_image.shape[0]
+                last_image_first = Comfly_gpt_image_edit._last_edited_image[0:1]
                 if last_image_first.shape[1:] == original_image.shape[1:]:
                     image = torch.cat([last_image_first, original_image[1:]], dim=0)
                     use_saved_image = True
             else:
-                image = Comfly_gpt_image_1_edit._last_edited_image
+                image = Comfly_gpt_image_edit._last_edited_image
                 use_saved_image = True
 
         if clear_chats:
-            Comfly_gpt_image_1_edit._conversation_history = []
+            Comfly_gpt_image_edit._conversation_history = []
    
         try:
             if not self.api_key:
@@ -386,12 +386,12 @@ class Comfly_gpt_image_1_edit:
                 if partial_images > 0:
                     response_info += f"Partial Images: {partial_images}\n"
 
-                Comfly_gpt_image_1_edit._conversation_history.append({
+                Comfly_gpt_image_edit._conversation_history.append({
                     "user": f"Edit image with prompt: {prompt}",
                     "ai": f"Generated edited image with {model}"
                 })
  
-                Comfly_gpt_image_1_edit._last_edited_image = combined_tensor
+                Comfly_gpt_image_edit._last_edited_image = combined_tensor
                 
                 pbar.update_absolute(100)
                 return (combined_tensor, response_info, self.format_conversation_history())
@@ -408,7 +408,7 @@ class Comfly_gpt_image_1_edit:
             return (original_image, error_message, self.format_conversation_history())
         
 
-class Comfly_gpt_image_1:
+class Comfly_gpt_image:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -417,7 +417,7 @@ class Comfly_gpt_image_1:
             },
             "optional": {
                 "api_key": ("STRING", {"default": ""}),
-                "model": ("STRING", {"default": "gpt-image-1"}),
+                "model": (["gpt-image-1", "gpt-image-1.5"], {"default": "gpt-image-1"}),
                 "n": ("INT", {"default": 1, "min": 1, "max": 10}),
                 "quality": (["auto", "high", "medium", "low"], {"default": "auto"}),
                 "size": (["auto", "1024x1024", "1536x1024", "1024x1536"], {"default": "auto"}),
