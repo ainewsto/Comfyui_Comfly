@@ -418,8 +418,8 @@ class Comfly_Flux_2_Pro:
                 "input_image_7": ("IMAGE",),
                 "input_image_8": ("IMAGE",),
                 "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647}),
-                "width": ("INT", {"default": 1024, "min": 64, "max": 2048, "step": 8}),
-                "height": ("INT", {"default": 1024, "min": 64, "max": 2048, "step": 8}),
+                "width": ("INT", {"default": 1024, "min": 64, "max": 6000, "step": 8}),
+                "height": ("INT", {"default": 1024, "min": 64, "max": 6000, "step": 8}),
                 "safety_tolerance": ("INT", {"default": 2, "min": 0, "max": 5}),
                 "output_format": (["jpeg", "png"], {"default": "png"}),
             }
@@ -632,8 +632,8 @@ class Comfly_Flux_2_Flex:
                 "input_image_8": ("IMAGE",),
                 "prompt_upsampling": ("BOOLEAN", {"default": True}),
                 "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647}),
-                "width": ("INT", {"default": 1024, "min": 64, "max": 2048, "step": 8}),
-                "height": ("INT", {"default": 1024, "min": 64, "max": 2048, "step": 8}),
+                "width": ("INT", {"default": 1024, "min": 64, "max": 6000, "step": 8}),
+                "height": ("INT", {"default": 1024, "min": 64, "max": 6000, "step": 8}),
                 "guidance": ("FLOAT", {"default": 5.0, "min": 1.5, "max": 10.0, "step": 0.1}),
                 "steps": ("INT", {"default": 50, "min": 1, "max": 50}),
                 "safety_tolerance": ("INT", {"default": 2, "min": 0, "max": 5}),
@@ -816,6 +816,224 @@ class Comfly_Flux_2_Flex:
                 }
                 
                 return (generated_tensor, image_url, json.dumps(result_info))
+                
+            except Exception as e:
+                error_message = f"Error downloading generated image: {str(e)}"
+                print(error_message)
+                return (default_tensor, image_url, json.dumps({"status": "partial_success", "message": error_message, "image_url": image_url}))
+            
+        except Exception as e:
+            error_message = f"Error in image generation: {str(e)}"
+            print(error_message)
+            import traceback
+            traceback.print_exc()
+            return (default_tensor, "", json.dumps({"status": "failed", "message": error_message}))
+
+
+class Comfly_Flux_2_Max:
+    """
+    Comfly Flux 2 Max node
+    Generates images using the Flux 2 Max API with support for multiple input images.
+    """
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+            },
+            "optional": {
+                "api_key": ("STRING", {"default": ""}),
+                "input_image": ("IMAGE",),
+                "input_image_2": ("IMAGE",),
+                "input_image_3": ("IMAGE",),
+                "input_image_4": ("IMAGE",),
+                "input_image_5": ("IMAGE",),
+                "input_image_6": ("IMAGE",),
+                "input_image_7": ("IMAGE",),
+                "input_image_8": ("IMAGE",),
+                "seed": ("INT", {"default": -1, "min": -1, "max": 2147483647}),
+                "width": ("INT", {"default": 1024, "min": 64, "max": 6000, "step": 8}),
+                "height": ("INT", {"default": 1024, "min": 64, "max": 6000, "step": 8}),
+                "safety_tolerance": ("INT", {"default": 2, "min": 0, "max": 5}),
+                "output_format": (["jpeg", "png"], {"default": "jpeg"}),
+            }
+        }
+    
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING")
+    RETURN_NAMES = ("image", "image_url", "response")
+    FUNCTION = "generate_image"
+    CATEGORY = "Comfly/Flux"
+
+    def __init__(self):
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 600
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+    
+    def image_to_base64(self, image_tensor):
+        """Convert tensor to base64 string"""
+        if image_tensor is None:
+            return None
+            
+        pil_image = tensor2pil(image_tensor)[0]
+        buffered = BytesIO()
+        pil_image.save(buffered, format="PNG")
+        return base64.b64encode(buffered.getvalue()).decode('utf-8')
+    
+    def generate_image(self, prompt, api_key="", input_image=None, input_image_2=None,
+                      input_image_3=None, input_image_4=None, input_image_5=None,
+                      input_image_6=None, input_image_7=None, input_image_8=None,
+                      seed=-1, width=1024, height=1024, safety_tolerance=2, 
+                      output_format="jpeg"):
+        
+        if api_key.strip():
+            self.api_key = api_key
+            config = get_config()
+            config['api_key'] = api_key
+
+        blank_image = Image.new('RGB', (width, height), color='white')
+        default_tensor = pil2tensor(blank_image)
+            
+        if not self.api_key:
+            error_response = {"status": "failed", "message": "API key not found"}
+            return (default_tensor, "", json.dumps(error_response))
+            
+        pbar = comfy.utils.ProgressBar(100)
+        pbar.update_absolute(10)
+        
+        try:
+            payload = {
+                "prompt": prompt,
+                "safety_tolerance": safety_tolerance,
+                "output_format": output_format
+            }
+
+            if width > 0:
+                payload["width"] = width
+            if height > 0:
+                payload["height"] = height
+
+            if seed != -1:
+                payload["seed"] = seed
+
+            image_inputs = [
+                ("input_image", input_image),
+                ("input_image_2", input_image_2),
+                ("input_image_3", input_image_3),
+                ("input_image_4", input_image_4),
+                ("input_image_5", input_image_5),
+                ("input_image_6", input_image_6),
+                ("input_image_7", input_image_7),
+                ("input_image_8", input_image_8),
+            ]
+            
+            for field_name, img in image_inputs:
+                if img is not None:
+                    img_base64 = self.image_to_base64(img)
+                    if img_base64:
+                        payload[field_name] = img_base64
+            
+            pbar.update_absolute(20)
+
+            response = requests.post(
+                f"{baseurl}/bfl/v1/flux-2-max",
+                headers=self.get_headers(),
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            pbar.update_absolute(30)
+            
+            if response.status_code != 200:
+                error_message = f"API Error: {response.status_code} - {response.text}"
+                print(error_message)
+                return (default_tensor, "", json.dumps({"status": "failed", "message": error_message}))
+                
+            result = response.json()
+            
+            if "id" not in result:
+                error_message = "No task ID in response"
+                print(error_message)
+                return (default_tensor, "", json.dumps({"status": "failed", "message": error_message}))
+                
+            task_id = result["id"]
+            polling_url = result.get("polling_url", "")
+            
+            pbar.update_absolute(40)
+
+            max_attempts = 120
+            attempts = 0
+            image_url = ""
+            final_result_data = None
+            
+            while attempts < max_attempts:
+                time.sleep(5)
+                attempts += 1
+                
+                try:
+                    result_response = requests.get(
+                        f"{baseurl}/bfl/v1/get_result?id={task_id}",
+                        headers=self.get_headers(),
+                        timeout=self.timeout
+                    )
+                    
+                    if result_response.status_code != 200:
+                        continue
+                        
+                    result_data = result_response.json()
+                    status = result_data.get("status", "")
+
+                    progress = min(90, 40 + (attempts * 50 // max_attempts))
+                    pbar.update_absolute(progress)
+                    
+                    if status == "Ready":
+                        if "result" in result_data and "sample" in result_data["result"]:
+                            image_url = result_data["result"]["sample"]
+                            final_result_data = result_data
+                            break
+                    elif status in ["Failed", "Error"]:
+                        error_message = f"Task failed: {result_data.get('details', 'Unknown error')}"
+                        print(error_message)
+                        return (default_tensor, "", json.dumps({"status": "failed", "message": error_message}))
+                        
+                except Exception as e:
+                    print(f"Error checking generation status: {str(e)}")
+            
+            if not image_url:
+                error_message = "Failed to retrieve generated image URL after multiple attempts"
+                print(error_message)
+                return (default_tensor, "", json.dumps({"status": "failed", "message": error_message}))
+            
+            pbar.update_absolute(90)
+
+            try:
+                img_response = requests.get(image_url, timeout=self.timeout)
+                img_response.raise_for_status()
+                
+                generated_image = Image.open(BytesIO(img_response.content))
+                generated_tensor = pil2tensor(generated_image)
+                
+                pbar.update_absolute(100)
+
+                result_info = {
+                    "status": "success",
+                    "id": task_id,
+                    "result": final_result_data.get("result", {}) if final_result_data else {},
+                    "prompt": prompt,
+                    "seed": final_result_data.get("result", {}).get("seed", seed) if final_result_data else seed,
+                    "width": width,
+                    "height": height,
+                    "image_url": image_url,
+                    "duration": final_result_data.get("result", {}).get("duration") if final_result_data else None,
+                    "start_time": final_result_data.get("result", {}).get("start_time") if final_result_data else None,
+                    "end_time": final_result_data.get("result", {}).get("end_time") if final_result_data else None,
+                }
+                
+                return (generated_tensor, image_url, json.dumps(result_info, indent=2))
                 
             except Exception as e:
                 error_message = f"Error downloading generated image: {str(e)}"
