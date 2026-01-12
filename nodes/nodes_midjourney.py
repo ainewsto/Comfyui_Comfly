@@ -367,7 +367,7 @@ class Comfly_Mj(ComflyBaseNode):
     Inputs:
         text (STRING, optional): Input text.
         api_key (STRING): API key for Midjourney.
-        model_version (STRING): Selected Midjourney model version (v 6.1, v 6.0, v 5.2, v 5.1, niji 6, niji 5, niji 4).
+        model_version (STRING): Selected Midjourney model version (v 6.1, v 6.0, v 5.2, v 5.1, niji 7, niji 6, niji 5, niji 4).
         speed (STRING): Selected speed mode (turbo mode, fast mode, relax mode).
         ar (STRING): Aspect ratio.
         no (STRING): Number of images.
