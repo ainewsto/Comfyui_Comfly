@@ -120,7 +120,7 @@ class Comfly_Googel_Veo3:
                     payload["images"] = images_base64
 
             response = requests.post(
-                f"{baseurl}/google/v1/models/veo/videos",
+                f"{baseurl}/v2/videos/generations",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -156,7 +156,7 @@ class Comfly_Googel_Veo3:
                 
                 try:
                     status_response = requests.get(
-                        f"{baseurl}/google/v1/tasks/{task_id}",
+                        f"{baseurl}/v2/videos/generations/{task_id}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
