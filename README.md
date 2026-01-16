@@ -29,6 +29,12 @@
 
 20251216:
 
+`Comfly_Googel_Veo3:节点`: 新增"veo3.1-4k", "veo3.1-pro-4k", "veo3.1-components-4k" 4k模型。
+enable_upsample参数开启就是生成1080p视频
+
+
+20251216:
+
 `Comfly_sora2_character:节点`: 新增from_task参数输入框：可以直接把sora2生成的真人视频的task id直接输入进去创建角色。
 
 

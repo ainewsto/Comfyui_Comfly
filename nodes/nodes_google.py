@@ -35,7 +35,7 @@ class Comfly_Googel_Veo3:
         return {
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
-                "model": (["veo3", "veo3-fast", "veo3-pro", "veo3-fast-frames", "veo3-pro-frames", "veo3.1", "veo3.1-pro", "veo3.1-components"], {"default": "veo3"}),
+                "model": (["veo3", "veo3-fast", "veo3-pro", "veo3-fast-frames", "veo3-pro-frames", "veo3.1", "veo3.1-pro", "veo3.1-components", "veo3.1-4k", "veo3.1-pro-4k", "veo3.1-components-4k"], {"default": "veo3"}),
                 "enhance_prompt": ("BOOLEAN", {"default": False}),
                 "aspect_ratio": (["16:9", "9:16"], {"default": "16:9"}),
             },
@@ -99,10 +99,10 @@ class Comfly_Googel_Veo3:
             if seed > 0:
                 payload["seed"] = seed
 
-            if model in ["veo3", "veo3-fast", "veo3-pro", "veo3.1", "veo3.1-pro", "veo3.1-components"] and aspect_ratio:
+            if model in ["veo3", "veo3-fast", "veo3-pro", "veo3.1", "veo3.1-pro", "veo3.1-components", "veo3.1-4k", "veo3.1-pro-4k", "veo3.1-components-4k"] and aspect_ratio:
                 payload["aspect_ratio"] = aspect_ratio
 
-            if model in ["veo3", "veo3-fast", "veo3-pro", "veo3.1", "veo3.1-pro", "veo3.1-components"] and enable_upsample:
+            if model in ["veo3", "veo3-fast", "veo3-pro", "veo3.1", "veo3.1-pro", "veo3.1-components", "veo3.1-4k", "veo3.1-pro-4k", "veo3.1-components-4k"] and enable_upsample:
                 payload["enable_upsample"] = enable_upsample
 
             if has_images:
