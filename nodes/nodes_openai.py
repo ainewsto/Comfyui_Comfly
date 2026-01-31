@@ -1307,3 +1307,301 @@ class Comfly_sora2_character:
             traceback.print_exc()
             return ("", "", "", "", json.dumps({"status": "error", "message": error_message}))
 
+
+
+class Comfly_sora2_new:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "model": (["sora-2", "sora-2-pro"], {"default": "sora-2"}),
+                "orientation": (["portrait", "landscape"], {"default": "portrait"}),
+                "size": (["small", "large"], {"default": "small"}),
+                "apikey": ("STRING", {"default": ""})
+            },
+            "optional": {
+                "reference_image": ("IMAGE",),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 2147483647}),
+            }
+        }
+    
+    RETURN_TYPES = (IO.VIDEO, "STRING", "STRING", "STRING", "STRING")
+    RETURN_NAMES = ("video", "video_url", "response")
+    FUNCTION = "process"
+    CATEGORY = "Comfly/Openai"
+
+    def __init__(self):
+        self.api_key = ""
+        self.base_url = "https://leo.comfly.chat"
+        self.timeout = 900
+        self.session = requests.Session()
+        self.model_mapping = {
+            "sora-2": "sy_8",
+            "sora-2-pro": "sy_ore"
+        }
+
+    def get_headers(self):
+        return {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "ngrok-skip-browser-warning": "69420",
+            "video-beta": "2025-10-20"
+        }
+    
+    def get_api_model(self, display_model):
+        return self.model_mapping.get(display_model, "sy_8")
+    
+    def upload_image(self, image_tensor, api_model):
+        """Upload image and return file_id"""
+        try:
+            pil_image = tensor2pil(image_tensor)[0]
+            
+            img_byte_arr = BytesIO()
+            pil_image.save(img_byte_arr, format='JPEG')
+            img_byte_arr.seek(0)
+            
+            timestamp = int(time.time() * 1000)
+            filename = f"ai-generated-{timestamp}.jpg"
+            
+            files = {
+                'file': (filename, img_byte_arr, 'image/jpeg')
+            }
+            
+            data = {
+                'url': '/video/upload',
+                'method': 'POST',
+                'filename': filename,
+                'model': api_model
+            }
+            
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "ngrok-skip-browser-warning": "69420",
+                "video-beta": "2025-10-20"
+            }
+            
+            response = self.session.post(
+                f"{self.base_url}/api/request",
+                headers=headers,
+                data=data,
+                files=files,
+                timeout=self.timeout
+            )
+            
+            if response.status_code != 200:
+                print(f"Upload error: {response.status_code} - {response.text}")
+                return None
+                
+            result = response.json()
+            file_id = result.get("file_id")
+            
+            if file_id:
+                print(f"Image uploaded successfully. File ID: {file_id}")
+                return file_id
+            else:
+                print(f"No file_id in response: {result}")
+                return None
+                
+        except Exception as e:
+            print(f"Error uploading image: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    def create_video(self, prompt, display_model, orientation, size, seed=0, reference_image=None):
+        """Create video task"""
+        try:
+
+            api_model = self.get_api_model(display_model)
+
+            payload = {
+                "url": "/video/create",
+                "method": "POST",
+                "data": {
+                    "prompt": prompt,
+                    "model": api_model,
+                    "orientation": orientation,
+                    "size": size,
+                    "n_frames": 450,
+                    "style": ""
+                }
+            }
+
+            if seed > 0:
+                payload["data"]["seed"] = seed
+                print(f"Using seed: {seed}")
+            
+            if reference_image is not None:
+                file_id = self.upload_image(reference_image, api_model)
+                if file_id:
+                    payload["data"]["reference_images"] = [
+                        {
+                            "kind": "upload",
+                            "file_id": file_id
+                        }
+                    ]
+                else:
+                    print("Warning: Failed to upload reference image, continuing without it")
+            
+            response = self.session.post(
+                f"{self.base_url}/api/request",
+                headers=self.get_headers(),
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            if response.status_code != 200:
+                error_message = f"Create video error: {response.status_code} - {response.text}"
+                print(error_message)
+                return None, error_message, api_model
+                
+            result = response.json()
+            task_id = result.get("task_id")
+            
+            if not task_id:
+                error_message = "No task_id in response"
+                print(error_message)
+                return None, error_message, api_model
+                
+            print(f"Video task created. Task ID: {task_id}")
+            return task_id, None, api_model
+            
+        except Exception as e:
+            error_message = f"Error creating video: {str(e)}"
+            print(error_message)
+            import traceback
+            traceback.print_exc()
+            return None, error_message, None
+    
+    def check_status(self, task_id, api_model):
+        """Check video generation status"""
+        try:
+            payload = {
+                "url": "/video/status",
+                "method": "GET",
+                "params": {
+                    "id": task_id,
+                    "model": api_model
+                }
+            }
+            
+            response = self.session.post(
+                f"{self.base_url}/api/request",
+                headers=self.get_headers(),
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            if response.status_code != 200:
+                print(f"Status check error: {response.status_code} - {response.text}")
+                return None
+                
+            result = response.json()
+            return result
+            
+        except Exception as e:
+            print(f"Error checking status: {str(e)}")
+            return None
+    
+    def process(self, prompt, model, orientation, size, apikey, reference_image=None, seed=0):
+        if not apikey.strip():
+            error_message = "API key is required"
+            print(error_message)
+            return ("", "", "", "", json.dumps({"status": "error", "message": error_message}))
+        
+        self.api_key = apikey.strip()
+        
+        try:
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(10)
+            
+            task_id, error, api_model = self.create_video(
+                prompt=prompt,
+                display_model=model,
+                orientation=orientation,
+                size=size,
+                seed=seed,
+                reference_image=reference_image
+            )
+            
+            if error or not task_id:
+                return ("", "", "", "", json.dumps({"status": "error", "message": error or "Failed to create task"}))
+            
+            pbar.update_absolute(30)
+            
+            max_attempts = 300
+            attempts = 0
+            video_url = None
+            thumbnail_url = None
+            
+            print(f"Waiting for video generation (Task ID: {task_id})...")
+            
+            while attempts < max_attempts:
+                time.sleep(10)
+                attempts += 1
+                
+                status_data = self.check_status(task_id, api_model)
+                
+                if not status_data:
+                    continue
+                
+                status = status_data.get("status", "")
+                progress = status_data.get("progress", 0)
+                
+                pbar_value = min(90, 30 + int(progress * 0.6))
+                pbar.update_absolute(pbar_value)
+
+                if status == "completed":
+                    video_url = status_data.get("video_url")
+                    thumbnail_url = status_data.get("thumbnail_url")
+                    
+                    if video_url:
+                        print(f"Video generation completed!")
+                        break
+                    else:
+                        error_message = "Video completed but no URL returned"
+                        print(error_message)
+                        return ("", "", "", task_id, json.dumps({"status": "error", "message": error_message}))
+                
+                elif status == "failed" or status == "error":
+                    error_message = f"Video generation failed with status: {status}"
+                    print(error_message)
+                    return ("", "", "", task_id, json.dumps({"status": "error", "message": error_message}))
+            
+            if not video_url:
+                error_message = f"Failed to get video URL after {max_attempts} attempts"
+                print(error_message)
+                return ("", "", "", task_id, json.dumps({"status": "error", "message": error_message}))
+            
+            video_adapter = ComflyVideoAdapter(video_url)
+            
+            pbar.update_absolute(100)
+            
+            response_data = {
+                "status": "success",
+                "task_id": task_id,
+                "prompt": prompt,
+                "model": model,
+                "api_model": api_model,
+                "orientation": orientation,
+                "size": size,
+                "seed": seed,
+                "video_url": video_url,
+                "thumbnail_url": thumbnail_url or ""
+            }
+            
+            return (
+                video_adapter,
+                video_url,
+                thumbnail_url or "",
+                task_id,
+                json.dumps(response_data, ensure_ascii=False)
+            )
+            
+        except Exception as e:
+            error_message = f"Error in video generation: {str(e)}"
+            print(error_message)
+            import traceback
+            traceback.print_exc()
+            return ("", "", "", "", json.dumps({"status": "error", "message": error_message}))

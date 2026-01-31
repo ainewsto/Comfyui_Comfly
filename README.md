@@ -27,6 +27,13 @@
 
 # 更新 Update：
 
+20260131:
+
+`Comfly_sora2_new:节点`: 新增Comfly_sora2_new节点，这个节点的apikey现在暂时无法用comfly.chat的，需要联系我购买单独的key。
+大约0.2人民币/次，sora2（10s，15s，可以使用角色）
+参数说明：orientation视频尺寸"portrait竖版", "landscape横板"。 size："small普通", "large高清（只有sora2 pro才支持）" 
+
+
 20251216:
 
 `Comfly_Googel_Veo3:节点`: 新增"veo3.1-4k", "veo3.1-pro-4k", "veo3.1-components-4k" 4k模型。
