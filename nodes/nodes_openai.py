@@ -1442,7 +1442,7 @@ class Comfly_sora2_new:
                     "orientation": orientation,
                     "size": size,
                     "n_frames": n_frames,
-                    "style": "comic"
+                    "style": ""
                 }
             }
 
