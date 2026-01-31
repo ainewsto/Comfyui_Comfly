@@ -1317,7 +1317,8 @@ class Comfly_sora2_new:
                 "prompt": ("STRING", {"multiline": True}),
                 "model": (["sora-2", "sora-2-pro"], {"default": "sora-2"}),
                 "orientation": (["portrait", "landscape"], {"default": "portrait"}),
-                "size": (["small", "large"], {"default": "small"}),
+                "size": (["small", "medium", "large"], {"default": "small"}),
+                "duration": (["10s", "15s", "25s"], {"default": "15s"}),
                 "apikey": ("STRING", {"default": ""})
             },
             "optional": {
@@ -1326,7 +1327,7 @@ class Comfly_sora2_new:
             }
         }
     
-    RETURN_TYPES = (IO.VIDEO, "STRING", "STRING", "STRING", "STRING")
+    RETURN_TYPES = (IO.VIDEO, "STRING", "STRING")
     RETURN_NAMES = ("video", "video_url", "response")
     FUNCTION = "process"
     CATEGORY = "Comfly/Openai"
@@ -1340,6 +1341,11 @@ class Comfly_sora2_new:
             "sora-2": "sy_8",
             "sora-2-pro": "sy_ore"
         }
+        self.duration_mapping = {
+            "10s": 300,
+            "15s": 450,
+            "25s": 750
+        }
 
     def get_headers(self):
         return {
@@ -1351,6 +1357,18 @@ class Comfly_sora2_new:
     
     def get_api_model(self, display_model):
         return self.model_mapping.get(display_model, "sy_8")
+    
+    def get_n_frames(self, duration):
+        return self.duration_mapping.get(duration, 450)
+    
+    def validate_parameters(self, model, size, duration):
+        if duration == "25s" and model == "sora-2":
+            return False, "25s duration is only available for sora-2-pro model. Please select sora-2-pro or choose a shorter duration."
+
+        if size == "large" and duration == "25s":
+            return False, "25s duration cannot be used with large size. Please choose a smaller size or shorter duration."
+        
+        return True, None
     
     def upload_image(self, image_tensor, api_model):
         """Upload image and return file_id"""
@@ -1409,12 +1427,12 @@ class Comfly_sora2_new:
             traceback.print_exc()
             return None
     
-    def create_video(self, prompt, display_model, orientation, size, seed=0, reference_image=None):
+    def create_video(self, prompt, display_model, orientation, size, duration, seed=0, reference_image=None):
         """Create video task"""
         try:
-
             api_model = self.get_api_model(display_model)
-
+            n_frames = self.get_n_frames(duration)
+ 
             payload = {
                 "url": "/video/create",
                 "method": "POST",
@@ -1423,8 +1441,8 @@ class Comfly_sora2_new:
                     "model": api_model,
                     "orientation": orientation,
                     "size": size,
-                    "n_frames": 450,
-                    "style": ""
+                    "n_frames": n_frames,
+                    "style": "comic"
                 }
             }
 
@@ -1504,11 +1522,16 @@ class Comfly_sora2_new:
             print(f"Error checking status: {str(e)}")
             return None
     
-    def process(self, prompt, model, orientation, size, apikey, reference_image=None, seed=0):
+    def process(self, prompt, model, orientation, size, duration, apikey, reference_image=None, seed=0):
         if not apikey.strip():
             error_message = "API key is required"
             print(error_message)
-            return ("", "", "", "", json.dumps({"status": "error", "message": error_message}))
+            return ("", "", json.dumps({"status": "error", "message": error_message}))
+
+        is_valid, error_message = self.validate_parameters(model, size, duration)
+        if not is_valid:
+            print(error_message)
+            return ("", "", json.dumps({"status": "error", "message": error_message}))
         
         self.api_key = apikey.strip()
         
@@ -1521,12 +1544,13 @@ class Comfly_sora2_new:
                 display_model=model,
                 orientation=orientation,
                 size=size,
+                duration=duration,
                 seed=seed,
                 reference_image=reference_image
             )
             
             if error or not task_id:
-                return ("", "", "", "", json.dumps({"status": "error", "message": error or "Failed to create task"}))
+                return ("", "", json.dumps({"status": "error", "message": error or "Failed to create task"}))
             
             pbar.update_absolute(30)
             
@@ -1558,21 +1582,22 @@ class Comfly_sora2_new:
                     
                     if video_url:
                         print(f"Video generation completed!")
+                        print(f"Video URL: {video_url}")
                         break
                     else:
                         error_message = "Video completed but no URL returned"
                         print(error_message)
-                        return ("", "", "", task_id, json.dumps({"status": "error", "message": error_message}))
+                        return ("", "", json.dumps({"status": "error", "message": error_message}))
                 
                 elif status == "failed" or status == "error":
                     error_message = f"Video generation failed with status: {status}"
                     print(error_message)
-                    return ("", "", "", task_id, json.dumps({"status": "error", "message": error_message}))
+                    return ("", "", json.dumps({"status": "error", "message": error_message}))
             
             if not video_url:
                 error_message = f"Failed to get video URL after {max_attempts} attempts"
                 print(error_message)
-                return ("", "", "", task_id, json.dumps({"status": "error", "message": error_message}))
+                return ("", "", json.dumps({"status": "error", "message": error_message}))
             
             video_adapter = ComflyVideoAdapter(video_url)
             
@@ -1586,6 +1611,7 @@ class Comfly_sora2_new:
                 "api_model": api_model,
                 "orientation": orientation,
                 "size": size,
+                "duration": duration,
                 "seed": seed,
                 "video_url": video_url,
                 "thumbnail_url": thumbnail_url or ""
@@ -1594,8 +1620,6 @@ class Comfly_sora2_new:
             return (
                 video_adapter,
                 video_url,
-                thumbnail_url or "",
-                task_id,
                 json.dumps(response_data, ensure_ascii=False)
             )
             
@@ -1604,4 +1628,4 @@ class Comfly_sora2_new:
             print(error_message)
             import traceback
             traceback.print_exc()
-            return ("", "", "", "", json.dumps({"status": "error", "message": error_message}))
+            return ("", "", json.dumps({"status": "error", "message": error_message}))
