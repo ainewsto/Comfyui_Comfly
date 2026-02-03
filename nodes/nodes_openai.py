@@ -1559,7 +1559,7 @@ class Comfly_sora2_new:
             video_url = None
             thumbnail_url = None
             completed_wait_attempts = 0  
-            max_completed_wait = 300 
+            max_completed_wait = 900 
             
             print(f"Waiting for video generation (Task ID: {task_id})...")
             
@@ -1657,3 +1657,4 @@ class Comfly_sora2_new:
             import traceback
             traceback.print_exc()
             return ("", "", json.dumps({"status": "error", "message": error_message}))
+
