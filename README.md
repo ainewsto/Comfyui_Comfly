@@ -27,6 +27,11 @@
 
 # 更新 Update：
 
+20260227:
+
+`Comfly_nano_banana2_edit:节点`: 新增gemini-3.1-flash-image-preview模型。
+
+
 20260131:
 
 `Comfly_sora2_new:节点`: 新增Comfly_sora2_new节点，这个节点的apikey现在暂时无法用comfly.chat的，需要联系我购买单独的key。

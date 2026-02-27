@@ -733,8 +733,8 @@ class Comfly_nano_banana2_edit:
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
                 "mode": (["text2img", "img2img"], {"default": "text2img"}),
-                "model": (["nano-banana-2", "nano-banana-2-2k", "nano-banana-2-4k"], {"default": "nano-banana-2"}),
-                "aspect_ratio": (["auto", "16:9", "4:3", "4:5", "3:2", "1:1", "2:3", "3:4", "5:4", "9:16", "21:9"], {"default": "auto"}),
+                "model": (["gemini-3.1-flash-image-preview", "nano-banana-2", "nano-banana-2-2k", "nano-banana-2-4k"], {"default": "nano-banana-2"}),
+                "aspect_ratio": (["auto", "16:9", "4:3", "4:5", "3:2", "1:1", "2:3", "3:4", "5:4", "9:16", "21:9", "1:4", "4:1", "1:8", "8:1"], {"default": "auto"}),
                 "image_size": (["1K", "2K", "4K"], {"default": "2K"}),
             },
             "optional": {
@@ -763,6 +763,8 @@ class Comfly_nano_banana2_edit:
     RETURN_NAMES = ("image", "response", "image_url")
     FUNCTION = "generate_image"
     CATEGORY = "Comfly/Google"
+
+    GEMINI_ONLY_RATIOS = ["1:4", "4:1", "1:8", "8:1"]
 
     def __init__(self):
         self.api_key = get_config().get('api_key', '')
@@ -804,6 +806,13 @@ class Comfly_nano_banana2_edit:
         if not self.api_key:
             error_message = "API key not found in Comflyapi.json"
             print(error_message)
+            blank_image = Image.new('RGB', (1024, 1024), color='white')
+            blank_tensor = pil2tensor(blank_image)
+            return (blank_tensor, error_message, "")
+
+        if aspect_ratio in self.GEMINI_ONLY_RATIOS and model != "gemini-3.1-flash-image-preview":
+            error_message = f"Error: Aspect ratio '{aspect_ratio}' is only supported by 'gemini-3.1-flash-image-preview' model. Current model: '{model}'"
+            print(f"[Comfly_nano_banana2_edit] {error_message}")
             blank_image = Image.new('RGB', (1024, 1024), color='white')
             blank_tensor = pil2tensor(blank_image)
             return (blank_tensor, error_message, "")
@@ -993,7 +1002,6 @@ class Comfly_nano_banana2_edit:
                             print(f"[Comfly_nano_banana2_edit] Downloading {len(urls_to_download)} images in parallel...")
                             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
                                 future_to_idx = {executor.submit(self._download_image_content, url): (idx, url) for idx, url in urls_to_download}
-                                
                                 for future in concurrent.futures.as_completed(future_to_idx):
                                     idx, url = future_to_idx[future]
                                     try:
@@ -1045,7 +1053,6 @@ class Comfly_nano_banana2_edit:
             blank_image = Image.new('RGB', (1024, 1024), color='white')
             blank_tensor = pil2tensor(blank_image)
             return (blank_tensor, error_message, "")
-            
         except Exception as e:
             error_message = f"Error in image generation: {str(e)}"
             print(f"[Comfly_nano_banana2_edit] {error_message}")
