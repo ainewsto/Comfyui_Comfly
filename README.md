@@ -27,6 +27,13 @@
 
 # 更新 Update：
 
+
+20260409:
+
+`seedance2.0:节点`: 新增Comfly_Doubao_Seedance2_0，Comfly_Doubao_Seedance2_0_asset。
+
+
+
 20260227:
 
 `Comfly_nano_banana2_edit:节点`: 新增gemini-3.1-flash-image-preview模型。
