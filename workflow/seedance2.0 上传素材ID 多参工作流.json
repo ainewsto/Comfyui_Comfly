@@ -1,0 +1,919 @@
+{
+  "id": "019efec8-f788-4b9d-afeb-881f5f59a9ef",
+  "revision": 0,
+  "last_node_id": 28,
+  "last_link_id": 42,
+  "nodes": [
+    {
+      "id": 12,
+      "type": "Comfly_api_set",
+      "pos": [
+        37.97145642282559,
+        -432.1012170473458
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {
+        "collapsed": false
+      },
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "apikey",
+          "type": "STRING",
+          "links": [
+            18,
+            25,
+            31,
+            32,
+            33,
+            38
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Comfly_api_set"
+      },
+      "widgets_values": [
+        "comfly",
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 14,
+      "type": "LoadImage",
+      "pos": [
+        -792.2902211877006,
+        -546.1805438185629
+      ],
+      "size": [
+        267.39506575903783,
+        350.4690793734705
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            34
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "r2v_tea_pic1 (1).jpg",
+        "image"
+      ]
+    },
+    {
+      "id": 19,
+      "type": "LoadImage",
+      "pos": [
+        -790.4542144909749,
+        -120.48194420490199
+      ],
+      "size": [
+        271.11678157794256,
+        338.5691947147345
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            35
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "r2v_tea_pic2 (1).jpg",
+        "image"
+      ]
+    },
+    {
+      "id": 20,
+      "type": "LoadAudio",
+      "pos": [
+        -797.6273025660984,
+        715.0940324116567
+      ],
+      "size": [
+        270,
+        136
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "AUDIO",
+          "type": "AUDIO",
+          "links": [
+            36
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadAudio"
+      },
+      "widgets_values": [
+        "r2v_tea_audio1.mp3",
+        null,
+        null
+      ]
+    },
+    {
+      "id": 17,
+      "type": "LoadVideo",
+      "pos": [
+        -852.0796650579754,
+        289.2235012615229
+      ],
+      "size": [
+        374,
+        322.3564673357422
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VIDEO",
+          "type": "VIDEO",
+          "links": [
+            37
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadVideo"
+      },
+      "widgets_values": [
+        "r2v_tea_video1.mp4",
+        "image"
+      ]
+    },
+    {
+      "id": 16,
+      "type": "Comfly_Doubao_Seedance2_0",
+      "pos": [
+        446.13982293290553,
+        -384.90329438916496
+      ],
+      "size": [
+        418.03513308597053,
+        726
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "first_frame",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "last_frame",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "ref_image1",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "ref_image2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "ref_image3",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "ref_image4",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "ref_image5",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "ref_image6",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "ref_image7",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "ref_image8",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "ref_image9",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "video1",
+          "shape": 7,
+          "type": "VIDEO",
+          "link": null
+        },
+        {
+          "name": "video2",
+          "shape": 7,
+          "type": "VIDEO",
+          "link": null
+        },
+        {
+          "name": "video3",
+          "shape": 7,
+          "type": "VIDEO",
+          "link": null
+        },
+        {
+          "name": "audio1",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "audio2",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "audio3",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "apikey",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "apikey"
+          },
+          "link": 18
+        },
+        {
+          "name": "asset_bundle",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "asset_bundle"
+          },
+          "link": 23
+        }
+      ],
+      "outputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "links": [
+            19
+          ]
+        },
+        {
+          "name": "task_id",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "response",
+          "type": "STRING",
+          "links": []
+        },
+        {
+          "name": "video_url",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "last_frame_image",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Comfly_Doubao_Seedance2_0"
+      },
+      "widgets_values": [
+        "全程使用视频1的第一视角构图，全程使用音频1作为背景音乐。第一人称视角果茶宣传广告，seedance牌「苹苹安安」苹果果茶限定款；首帧为图片1，你的手摘下一颗带晨露的阿克苏红苹果，轻脆的苹果碰撞声；2-4 秒：快速切镜，你的手将苹果块投入雪克杯，加入冰块与茶底，用力摇晃，冰块碰撞声与摇晃声卡点轻快鼓点，背景音：「鲜切现摇」；4-6 秒：第一人称成品特写，分层果茶倒入透明杯，你的手轻挤奶盖在顶部铺展，在杯身贴上粉红包标，镜头拉近看奶盖与果茶的分层纹理；6-8 秒：第一人称手持举杯，你将图片2中的果茶举到镜头前（模拟递到观众面前的视角），杯身标签清晰可见，背景音「来一口鲜爽」，尾帧定格为图片2。背景声音统一为女生音色。",
+        "doubao-seedance-2-0-260128",
+        8,
+        "16:9",
+        "720p",
+        "",
+        true,
+        false,
+        false,
+        false,
+        1192164265,
+        "randomize",
+        ""
+      ]
+    },
+    {
+      "id": 23,
+      "type": "Comfly_Doubao_Seedance2_0_Asset",
+      "pos": [
+        -431.6661967661285,
+        -527.6638633605999
+      ],
+      "size": [
+        330.468359375,
+        178.93425262353958
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 34
+        },
+        {
+          "name": "video",
+          "shape": 7,
+          "type": "VIDEO",
+          "link": null
+        },
+        {
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "apikey",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "apikey"
+          },
+          "link": 25
+        }
+      ],
+      "outputs": [
+        {
+          "name": "asset_id",
+          "type": "STRING",
+          "links": [
+            39
+          ]
+        },
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "response",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Comfly_Doubao_Seedance2_0_Asset"
+      },
+      "widgets_values": [
+        "",
+        "水果"
+      ]
+    },
+    {
+      "id": 24,
+      "type": "Comfly_Doubao_Seedance2_0_Asset",
+      "pos": [
+        -432.9839990281007,
+        -113.72877149622235
+      ],
+      "size": [
+        330.468359375,
+        178.93425262353958
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 35
+        },
+        {
+          "name": "video",
+          "shape": 7,
+          "type": "VIDEO",
+          "link": null
+        },
+        {
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "apikey",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "apikey"
+          },
+          "link": 32
+        }
+      ],
+      "outputs": [
+        {
+          "name": "asset_id",
+          "type": "STRING",
+          "links": [
+            40
+          ]
+        },
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "response",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Comfly_Doubao_Seedance2_0_Asset"
+      },
+      "widgets_values": [
+        "",
+        "上市"
+      ]
+    },
+    {
+      "id": 25,
+      "type": "Comfly_Doubao_Seedance2_0_Asset",
+      "pos": [
+        -423.4572937774622,
+        294.66283997156467
+      ],
+      "size": [
+        330.468359375,
+        178.93425262353958
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "video",
+          "shape": 7,
+          "type": "VIDEO",
+          "link": 37
+        },
+        {
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": null
+        },
+        {
+          "name": "apikey",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "apikey"
+          },
+          "link": 33
+        }
+      ],
+      "outputs": [
+        {
+          "name": "asset_id",
+          "type": "STRING",
+          "links": [
+            41
+          ]
+        },
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "response",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Comfly_Doubao_Seedance2_0_Asset"
+      },
+      "widgets_values": [
+        "",
+        "参考"
+      ]
+    },
+    {
+      "id": 26,
+      "type": "Comfly_Doubao_Seedance2_0_Asset",
+      "pos": [
+        -426.0247746251521,
+        680.9876292063136
+      ],
+      "size": [
+        330.468359375,
+        178.93425262353958
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "video",
+          "shape": 7,
+          "type": "VIDEO",
+          "link": null
+        },
+        {
+          "name": "audio",
+          "shape": 7,
+          "type": "AUDIO",
+          "link": 36
+        },
+        {
+          "name": "apikey",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "apikey"
+          },
+          "link": 31
+        }
+      ],
+      "outputs": [
+        {
+          "name": "asset_id",
+          "type": "STRING",
+          "links": [
+            42
+          ]
+        },
+        {
+          "name": "status",
+          "type": "STRING",
+          "links": null
+        },
+        {
+          "name": "response",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Comfly_Doubao_Seedance2_0_Asset"
+      },
+      "widgets_values": [
+        "",
+        "音频"
+      ]
+    },
+    {
+      "id": 22,
+      "type": "Comfly_Doubao_Seedance2_0_AssetIdBundle",
+      "pos": [
+        -1.0859831105097442,
+        -161.4407262738653
+      ],
+      "size": [
+        346.7583984375,
+        466
+      ],
+      "flags": {
+        "collapsed": false
+      },
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "apikey",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "apikey"
+          },
+          "link": 38
+        },
+        {
+          "name": "ref_image1",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "ref_image1"
+          },
+          "link": 39
+        },
+        {
+          "name": "ref_image2",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "ref_image2"
+          },
+          "link": 40
+        },
+        {
+          "name": "video1",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "video1"
+          },
+          "link": 41
+        },
+        {
+          "name": "audio1",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "audio1"
+          },
+          "link": 42
+        }
+      ],
+      "outputs": [
+        {
+          "name": "asset_bundle",
+          "type": "STRING",
+          "links": [
+            23
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "Comfly_Doubao_Seedance2_0_AssetIdBundle"
+      },
+      "widgets_values": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 15,
+      "type": "SaveVideo",
+      "pos": [
+        955.3391594861362,
+        -405.84206086429606
+      ],
+      "size": [
+        865.1690866086692,
+        632.4957304615149
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "video",
+          "type": "VIDEO",
+          "link": 19
+        }
+      ],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "video/ComfyUI",
+        "auto",
+        "auto"
+      ]
+    }
+  ],
+  "links": [
+    [
+      18,
+      12,
+      0,
+      16,
+      17,
+      "STRING"
+    ],
+    [
+      19,
+      16,
+      0,
+      15,
+      0,
+      "VIDEO"
+    ],
+    [
+      23,
+      22,
+      0,
+      16,
+      18,
+      "STRING"
+    ],
+    [
+      25,
+      12,
+      0,
+      23,
+      3,
+      "STRING"
+    ],
+    [
+      31,
+      12,
+      0,
+      26,
+      3,
+      "STRING"
+    ],
+    [
+      32,
+      12,
+      0,
+      24,
+      3,
+      "STRING"
+    ],
+    [
+      33,
+      12,
+      0,
+      25,
+      3,
+      "STRING"
+    ],
+    [
+      34,
+      14,
+      0,
+      23,
+      0,
+      "IMAGE"
+    ],
+    [
+      35,
+      19,
+      0,
+      24,
+      0,
+      "IMAGE"
+    ],
+    [
+      36,
+      20,
+      0,
+      26,
+      2,
+      "AUDIO"
+    ],
+    [
+      37,
+      17,
+      0,
+      25,
+      1,
+      "VIDEO"
+    ],
+    [
+      38,
+      12,
+      0,
+      22,
+      0,
+      "STRING"
+    ],
+    [
+      39,
+      23,
+      0,
+      22,
+      1,
+      "STRING"
+    ],
+    [
+      40,
+      24,
+      0,
+      22,
+      2,
+      "STRING"
+    ],
+    [
+      41,
+      25,
+      0,
+      22,
+      3,
+      "STRING"
+    ],
+    [
+      42,
+      26,
+      0,
+      22,
+      4,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.6115909044841478,
+      "offset": [
+        1112.9724170000914,
+        960.0196711209895
+      ]
+    },
+    "frontendVersion": "1.41.21"
+  },
+  "version": 0.4
+}

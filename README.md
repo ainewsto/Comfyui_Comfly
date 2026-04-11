@@ -27,6 +27,11 @@
 
 # 更新 Update：
 
+20260411:
+
+seedance2.0:节点: 新增Comfly_Doubao_Seedance2_0_AssetIdBundle，修改Comfly_Doubao_Seedance2_0，Comfly_Doubao_Seedance2_0_asset一些bug
+
+
 
 20260409:
 
