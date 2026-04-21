@@ -1658,3 +1658,232 @@ class Comfly_sora2_new:
             traceback.print_exc()
             return ("", "", json.dumps({"status": "error", "message": error_message}))
 
+
+
+class Comfly_gpt_image_2:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "prompt": ("STRING", {"multiline": True}),
+                "model": (["gpt-image-2"], {"default": "gpt-image-2"}),
+                "aspect_ratio": ([
+                    "1:1",
+                    "4:3",
+                    "3:4",
+                    "16:9",
+                    "9:16",
+                    "3:2",
+                    "2:3",
+                    "21:9",
+                ], {"default": "1:1"}),
+            },
+            "optional": {
+                "image1": ("IMAGE",),
+                "image2": ("IMAGE",),
+                "image3": ("IMAGE",),
+                "image4": ("IMAGE",),
+                "api_key": ("STRING", {"default": ""}),
+                "webhook": ("STRING", {"default": ""}),
+                "max_poll_attempts": ("INT", {"default": 300, "min": 10, "max": 1000}),
+                "poll_interval": ("INT", {"default": 5, "min": 2, "max": 60}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
+            }
+        }
+
+    RETURN_TYPES = ("IMAGE", "STRING", "STRING")
+    RETURN_NAMES = ("image", "image_url", "response")
+    FUNCTION = "generate"
+    CATEGORY = "Comfly/Openai"
+
+    def __init__(self):
+        self.api_key = get_config().get('api_key', '')
+        self.timeout = 300
+
+    def get_headers(self):
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+
+    def image_to_base64_data_uri(self, image_tensor):
+        """Convert single image tensor to base64 data URI"""
+        pil_image = tensor2pil(image_tensor)[0]
+        buffered = BytesIO()
+        pil_image.save(buffered, format="PNG")
+        b64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+        return f"data:image/png;base64,{b64}"
+
+    def parse_aspect_ratio(self, aspect_ratio_label):
+        """Extract just the ratio part like '1:1' from '1:1 '"""
+        return aspect_ratio_label.split(" ")[0].strip()
+
+    def generate(self, prompt, model, aspect_ratio, image1=None, image2=None, image3=None,
+                 image4=None, api_key="", webhook="", max_poll_attempts=300, poll_interval=5, seed=0):
+        if api_key.strip():
+            self.api_key = api_key
+            config = get_config()
+            config['api_key'] = api_key
+            save_config(config)
+
+        try:
+            if not self.api_key:
+                error_message = "API key not found in Comflyapi.json"
+                print(error_message)
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                return (pil2tensor(blank_image), "", error_message)
+
+            pbar = comfy.utils.ProgressBar(100)
+            pbar.update_absolute(5)
+
+            ratio = self.parse_aspect_ratio(aspect_ratio)
+
+            prompt = f"{prompt} 比例是：{ratio}"
+
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "aspect_ratio": ratio,
+            }
+
+            images_list = []
+            for img in [image1, image2, image3, image4]:
+                if img is not None:
+                    batch_size = img.shape[0]
+                    for i in range(batch_size):
+                        single = img[i:i+1]
+                        images_list.append(self.image_to_base64_data_uri(single))
+
+            if images_list:
+                payload["image"] = images_list
+
+            url = f"{baseurl}/v1/images/generations?async=true"
+            if webhook.strip():
+                url += f"&webhook={webhook.strip()}"
+
+            pbar.update_absolute(10)
+            print(f"Submitting async gpt-image-2 task with aspect_ratio={ratio}, model={model}")
+            
+            response = requests.post(
+                url,
+                headers=self.get_headers(),
+                json=payload,
+                timeout=self.timeout
+            )
+
+            if response.status_code != 200:
+                error_message = f"API Error: {response.status_code} - {response.text}"
+                print(error_message)
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                return (pil2tensor(blank_image), "", error_message)
+
+            submit_result = response.json()
+            task_id = submit_result.get("task_id") or submit_result.get("data")
+
+            if not task_id:
+                error_message = f"No task_id in response: {submit_result}"
+                print(error_message)
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                return (pil2tensor(blank_image), "", error_message)
+
+            print(f"Task submitted. Task ID: {task_id}")
+            pbar.update_absolute(20)
+
+            query_url = f"{baseurl}/v1/images/tasks/{task_id}"
+            attempts = 0
+            image_url = ""
+            b64_json = ""
+            final_result = None
+
+            while attempts < max_poll_attempts:
+                time.sleep(poll_interval)
+                attempts += 1
+
+                try:
+                    status_response = requests.get(
+                        query_url,
+                        headers=self.get_headers(),
+                        timeout=self.timeout
+                    )
+
+                    if status_response.status_code != 200:
+                        print(f"Status check failed: {status_response.status_code}")
+                        continue
+
+                    status_data = status_response.json()
+                    inner = status_data.get("data", {}) if isinstance(status_data, dict) else {}
+
+                    status = inner.get("status", "")
+                    progress_str = inner.get("progress", "0%")
+
+                    try:
+                        if isinstance(progress_str, str) and progress_str.endswith('%'):
+                            progress_value = int(progress_str[:-1])
+                            pbar_value = min(95, 20 + int(progress_value * 0.75))
+                            pbar.update_absolute(pbar_value)
+                    except (ValueError, AttributeError):
+                        pass
+
+                    if status == "SUCCESS":
+                        result_data = inner.get("data", {})
+                        data_array = result_data.get("data", []) if isinstance(result_data, dict) else []
+                        if data_array:
+                            first_item = data_array[0]
+                            image_url = first_item.get("url", "")
+                            b64_json = first_item.get("b64_json", "")
+                        final_result = status_data
+                        break
+                    elif status == "FAILURE":
+                        fail_reason = inner.get("fail_reason", "Unknown error")
+                        error_message = f"Task failed: {fail_reason}"
+                        print(error_message)
+                        blank_image = Image.new('RGB', (1024, 1024), color='white')
+                        return (pil2tensor(blank_image), "", error_message)
+
+                except Exception as e:
+                    print(f"Error polling task status: {str(e)}")
+                    continue
+
+            if not image_url and not b64_json:
+                error_message = f"Failed to get image after {max_poll_attempts} attempts"
+                print(error_message)
+                blank_image = Image.new('RGB', (1024, 1024), color='white')
+                return (pil2tensor(blank_image), "", error_message)
+
+            if b64_json:
+                b64_data = b64_json
+                if b64_data.startswith("data:image"):
+                    b64_data = b64_data.split(",", 1)[1]
+                image_data = base64.b64decode(b64_data)
+                generated_image = Image.open(BytesIO(image_data))
+            else:
+                img_response = requests.get(image_url, timeout=self.timeout)
+                img_response.raise_for_status()
+                generated_image = Image.open(BytesIO(img_response.content))
+
+            generated_tensor = pil2tensor(generated_image)
+            pbar.update_absolute(100)
+
+            response_info = f"**GPT-image-2 Generation**\n"
+            response_info += f"Model: {model}\n"
+            response_info += f"Aspect Ratio: {ratio}\n"
+            response_info += f"Prompt: {prompt}\n"
+            response_info += f"Task ID: {task_id}\n"
+            if image_url:
+                response_info += f"Image URL: {image_url}\n"
+            if final_result:
+                inner = final_result.get("data", {})
+                inner_data = inner.get("data", {}) if isinstance(inner, dict) else {}
+                if isinstance(inner_data, dict) and "usage" in inner_data:
+                    usage = inner_data["usage"]
+                    response_info += f"Total Tokens: {usage.get('total_tokens', 'N/A')}\n"
+
+            return (generated_tensor, image_url, response_info)
+
+        except Exception as e:
+            error_message = f"Error in gpt-image-2 generation: {str(e)}"
+            import traceback
+            print(traceback.format_exc())
+            print(error_message)
+            blank_image = Image.new('RGB', (1024, 1024), color='white')
+            return (pil2tensor(blank_image), "", error_message)

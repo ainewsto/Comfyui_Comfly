@@ -29,6 +29,12 @@
 
 20260411:
 
+chatgpt:节点: 新增Comfly_gpt_image_2节点，目前支持比例1:1、3:2、2:3，选项里面的其他尺寸为自动加到提示词后面的，生成具有随机性。
+
+
+
+20260411:
+
 seedance2.0:节点: 新增Comfly_Doubao_Seedance2_0_AssetIdBundle，修改Comfly_Doubao_Seedance2_0，Comfly_Doubao_Seedance2_0_asset一些bug
 
 
