@@ -1891,16 +1891,77 @@ class Comfly_gpt_image_2:
 
 class Comfly_gpt_image_2_official:
 
-    _GPT_IMAGE2_SIZE_CHOICES = [
-        "auto",
-        "1024x1024",
-        "1536x1024",
-        "1024x1536",
-        "2048x2048",
-        "2048x1152",
-        "3840x2160",
-        "2160x3840",
+    _ASPECT_RATIO_CHOICES = [
+        "1:1",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4",
+        "5:4",
+        "4:5",
+        "16:9",
+        "9:16",
+        "2:1",
+        "1:2",
+        "21:9",
+        "9:21",
     ]
+
+    _RESOLUTION_CHOICES = ["1k", "2k", "4k"]
+
+    _SIZE_MAP = {
+        ("1:1", "1k"): "1024x1024",
+        ("1:1", "2k"): "2048x2048",
+        ("1:1", "4k"): None,  
+        
+        ("3:2", "1k"): "1536x1024",
+        ("3:2", "2k"): "2048x1360",
+        ("3:2", "4k"): None,
+        
+        ("2:3", "1k"): "1024x1536",
+        ("2:3", "2k"): "1360x2048",
+        ("2:3", "4k"): None,
+        
+        ("4:3", "1k"): "1024x768",
+        ("4:3", "2k"): "2048x1536",
+        ("4:3", "4k"): None,
+        
+        ("3:4", "1k"): "768x1024",
+        ("3:4", "2k"): "1536x2048",
+        ("3:4", "4k"): None,
+        
+        ("5:4", "1k"): "1280x1024",
+        ("5:4", "2k"): "2560x2048",
+        ("5:4", "4k"): None,
+        
+        ("4:5", "1k"): "1024x1280",
+        ("4:5", "2k"): "2048x2560",
+        ("4:5", "4k"): None,
+        
+        ("16:9", "1k"): "1536x864",
+        ("16:9", "2k"): "2048x1152",
+        ("16:9", "4k"): "3840x2160",
+        
+        ("9:16", "1k"): "864x1536",
+        ("9:16", "2k"): "1152x2048",
+        ("9:16", "4k"): "2160x3840",
+        
+        ("2:1", "1k"): "2048x1024",
+        ("2:1", "2k"): "2688x1344",
+        ("2:1", "4k"): "3840x1920",
+        
+        ("1:2", "1k"): "1024x2048",
+        ("1:2", "2k"): "1344x2688",
+        ("1:2", "4k"): "1920x3840",
+        
+        ("21:9", "1k"): "2016x864",
+        ("21:9", "2k"): "2688x1152",
+        ("21:9", "4k"): "3840x1648",
+        
+        ("9:21", "1k"): "864x2016",
+        ("9:21", "2k"): "1152x2688",
+        ("9:21", "4k"): "1648x3840",
+    }
 
     @staticmethod
     def _parse_size_wh(size_str):
@@ -1913,7 +1974,7 @@ class Comfly_gpt_image_2_official:
     def _validate_gpt_image2_size(cls, size_str):
         """
         gpt-image-2: long edge <= 3840; both sides multiple of 16; aspect <= 3:1;
-        total pixels in [655360, 8294400]. (Larger than ~2560x1440 is documented as experimental.)
+        total pixels in [655360, 8294400].
         """
         if size_str == "auto":
             return True, None
@@ -1933,18 +1994,31 @@ class Comfly_gpt_image_2_official:
         return True, None
 
     @classmethod
+    def _get_size_from_params(cls, aspect_ratio, resolution):
+        """根据 aspect_ratio 和 resolution 获取实际的 size"""
+        size = cls._SIZE_MAP.get((aspect_ratio, resolution))
+        if size is None:
+            return None, f"不支持的组合: {aspect_ratio} × {resolution}。4K 仅支持 16:9 / 9:16 / 2:1 / 1:2 / 21:9 / 9:21 这 6 个比例。"
+        return size, None
+
+    @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
                 "prompt": ("STRING", {"multiline": True}),
+                "aspect_ratio": (cls._ASPECT_RATIO_CHOICES, {"default": "1:1"}),
+                "resolution": (cls._RESOLUTION_CHOICES, {"default": "1k"}),
             },
             "optional": {
-                "image": ("IMAGE",),
+                "image1": ("IMAGE",),
+                "image2": ("IMAGE",),
+                "image3": ("IMAGE",),
+                "image4": ("IMAGE",),
+                "image5": ("IMAGE",),
                 "mask": ("MASK",),
                 "api_key": ("STRING", {"default": ""}),
                 "n": ("INT", {"default": 1, "min": 1, "max": 10}),
                 "quality": (["auto", "high", "medium", "low"], {"default": "auto"}),
-                "size": (cls._GPT_IMAGE2_SIZE_CHOICES, {"default": "auto"}),
                 "background": (["auto", "opaque"], {"default": "auto"}),
                 "output_format": (["png", "jpeg", "webp"], {"default": "png"}),
                 "output_compression": ("INT", {"default": 100, "min": 0, "max": 100}),
@@ -2037,43 +2111,49 @@ class Comfly_gpt_image_2_official:
         return ("blank.png", buf, "image/png")
 
     def _build_official_edits_multipart(
-        self, prompt, image, mask, n, quality, size, background,
+        self, prompt, image1, image2, image3, image4, image5, mask, n, quality, size, background,
         output_format, output_compression, moderation
     ):
-        """
-        组装与 OpenAI /v1/images/edits 一致的 form：无图时传空白 1024×1024 作为 image。
-        返回 (data, request_files) 供 requests 的 data= 与 files= 使用。
-        """
-        if mask is not None and image is None:
-            raise Exception("使用 mask 时必须提供 input image")
+
+        input_images = []
+        for img in [image1, image2, image3, image4, image5]:
+            if img is not None:
+                input_images.append(img)
+        
+        if mask is not None and len(input_images) == 0:
+            raise Exception("使用 mask 时必须提供至少一个 input image")
 
         files = {}
-        if image is None:
+
+        if len(input_images) == 0:
             files["image"] = self._blank_input_file()
-            batch_size = 1
+            total_images = 1
         else:
-            batch_size = image.shape[0]
-            for i in range(batch_size):
-                single_image = image[i : i + 1]
-                scaled_image = downscale_input(single_image).squeeze()
-                image_np = (scaled_image.numpy() * 255).astype(np.uint8)
-                img = Image.fromarray(image_np)
-                img_byte_arr = io.BytesIO()
-                img.save(img_byte_arr, format="PNG")
-                img_byte_arr.seek(0)
-                if batch_size == 1:
-                    files["image"] = ("image.png", img_byte_arr, "image/png")
-                else:
-                    if "image[]" not in files:
-                        files["image[]"] = []
-                    files["image[]"].append(
-                        ("image_{}.png".format(i), img_byte_arr, "image/png")
-                    )
+            image_list = []
+            for img_tensor in input_images:
+                batch_size = img_tensor.shape[0]
+                for i in range(batch_size):
+                    single_image = img_tensor[i : i + 1]
+                    scaled_image = downscale_input(single_image).squeeze()
+                    image_np = (scaled_image.numpy() * 255).astype(np.uint8)
+                    img = Image.fromarray(image_np)
+                    img_byte_arr = io.BytesIO()
+                    img.save(img_byte_arr, format="PNG")
+                    img_byte_arr.seek(0)
+                    image_list.append(("image_{}.png".format(len(image_list)), img_byte_arr, "image/png"))
+            
+            total_images = len(image_list)
+            
+            if total_images == 1:
+                files["image"] = image_list[0]
+            else:
+                files["image[]"] = image_list
 
         if mask is not None:
-            if batch_size != 1:
-                raise Exception("Mask requires a single input image")
-            if mask.shape[1:] != image.shape[1:-1]:
+            if total_images != 1:
+                raise Exception("Mask requires exactly one input image")
+            first_img = input_images[0]
+            if mask.shape[1:] != first_img.shape[1:-1]:
                 raise Exception("Mask and Image must be the same size")
             _batch, height, width = mask.shape
             rgba_mask = torch.zeros(height, width, 4, device="cpu")
@@ -2092,9 +2172,8 @@ class Comfly_gpt_image_2_official:
             "n": str(n),
             "quality": quality,
             "moderation": moderation,
+            "size": size,  
         }
-        if size != "auto":
-            data["size"] = size
         if background != "auto":
             data["background"] = background
         if output_compression != 100:
@@ -2147,7 +2226,11 @@ class Comfly_gpt_image_2_official:
     def _async_official(
         self,
         prompt,
-        image,
+        image1,
+        image2,
+        image3,
+        image4,
+        image5,
         mask,
         pbar,
         max_poll_attempts,
@@ -2164,7 +2247,7 @@ class Comfly_gpt_image_2_official:
         initial_timeout,
     ):
         data, request_files = self._build_official_edits_multipart(
-            prompt, image, mask, n, quality, size, background,
+            prompt, image1, image2, image3, image4, image5, mask, n, quality, size, background,
             output_format, output_compression, moderation,
         )
         url = f"{baseurl}/v1/images/edits?async=true"
@@ -2277,12 +2360,11 @@ class Comfly_gpt_image_2_official:
         return out
 
     def _edits(
-        self, prompt, image, mask, n, quality, size, background,
+        self, prompt, image1, image2, image3, image4, image5, mask, n, quality, size, background,
         output_format, output_compression, moderation, max_retries, initial_timeout, pbar
     ):
-
         data, request_files = self._build_official_edits_multipart(
-            prompt, image, mask, n, quality, size, background,
+            prompt, image1, image2, image3, image4, image5, mask, n, quality, size, background,
             output_format, output_compression, moderation,
         )
         pbar.update_absolute(20)
@@ -2297,8 +2379,9 @@ class Comfly_gpt_image_2_official:
         return response.json()
 
     def generate(
-        self, prompt, image=None, mask=None, api_key="",
-        n=1, quality="auto", size="auto", background="auto",
+        self, prompt, aspect_ratio="1:1", resolution="1k", image1=None, image2=None, 
+        image3=None, image4=None, image5=None, mask=None, api_key="",
+        n=1, quality="auto", background="auto",
         output_format="png", output_compression=100, moderation="auto",
         async_mode=True, webhook="", max_poll_attempts=300, poll_interval=5,
         max_retries=5, initial_timeout=900, seed=0
@@ -2317,6 +2400,14 @@ class Comfly_gpt_image_2_official:
             print(msg)
             return (blank_t, "", msg)
 
+        size, error_msg = self._get_size_from_params(aspect_ratio, resolution)
+        if error_msg:
+            print(error_msg)
+            return (blank_t, "", error_msg)
+
+        input_images = [img for img in [image1, image2, image3, image4, image5] if img is not None]
+        num_input_images = len(input_images)
+
         pbar = comfy.utils.ProgressBar(100)
         pbar.update_absolute(5)
 
@@ -2324,28 +2415,33 @@ class Comfly_gpt_image_2_official:
             s = f"**Comfly gpt-image-2 (official)** {mode_line}\n"
             s += f"Model: gpt-image-2\n"
             s += f"Prompt: {prompt}\n"
+            s += f"Aspect Ratio: {aspect_ratio}\n"
+            s += f"Resolution: {resolution}\n"
+            s += f"Actual Size: {size}\n"
             s += f"Quality: {quality}\n"
-            if size != "auto":
-                s += f"Size: {size}\n"
-                w, h = self._parse_size_wh(size)
-                if w is not None and h is not None and w * h > 2560 * 1440:
-                    s += "（总像素大于约 2560×1440，文档中视为实验性输出）\n"
+            s += f"Input Images: {num_input_images}\n"
+            w, h = self._parse_size_wh(size)
+            if w is not None and h is not None and w * h > 2560 * 1440:
+                s += "（总像素大于约 2560×1440，文档中视为实验性输出）\n"
             if background != "auto":
                 s += f"Background: {background}\n"
             s += f"Output: {output_format}\n"
             return s
 
         try:
-            if size != "auto":
-                ok, err_msg = self._validate_gpt_image2_size(size)
-                if not ok:
-                    print(err_msg)
-                    return (blank_t, "", err_msg)
+            ok, err_msg = self._validate_gpt_image2_size(size)
+            if not ok:
+                print(err_msg)
+                return (blank_t, "", err_msg)
 
             if async_mode:
                 combined, image_url, task_id, final_result = self._async_official(
                     prompt,
-                    image,
+                    image1,
+                    image2,
+                    image3,
+                    image4,
+                    image5,
                     mask,
                     pbar,
                     max_poll_attempts,
@@ -2378,12 +2474,12 @@ class Comfly_gpt_image_2_official:
                 return (combined, image_url or "", info)
 
             result = self._edits(
-                prompt, image, mask, n, quality, size, background,
+                prompt, image1, image2, image3, image4, image5, mask, n, quality, size, background,
                 output_format, output_compression, moderation,
                 max_retries, initial_timeout, pbar
             )
             mode = "sync: /v1/images/edits (multipart" + (
-                ", blank ref" if image is None else ""
+                ", blank ref" if num_input_images == 0 else f", {num_input_images} images"
             ) + (", mask" if mask is not None else "") + ")"
 
             if "data" not in result or not result["data"]:
@@ -2420,4 +2516,4 @@ class Comfly_gpt_image_2_official:
             import traceback
             print(traceback.format_exc())
             print(error_message)
-            return (blank_t, "", error_message)            
+            return (blank_t, "", error_message)
