@@ -640,7 +640,7 @@ https://github.com/comfyanonymous/ComfyUI
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=ainewsto/Comfyui_Comfly&type=Date)](https://star-history.com/#ainewsto/Comfyui_Comfly&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=ainewsto/Comfyui_Comfly&type=Date)](https://star-history.dera.page/#ainewsto/Comfyui_Comfly&Date)
 
 
 
