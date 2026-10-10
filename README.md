@@ -27,6 +27,12 @@
 
 # 更新 Update：
 
+20261010
+
+chatgpt:节点: Comfly_gpt_image_2_official节点新增gpt-image-2.5-flare，gpt-image-2.5-sunburst模型
+              Comfly_nano_banana2_edit节点新增gemini-nano-banana-2.1模型
+
+
 20260610:
 
 chatgpt:节点: Comfly_gpt_image_2_official节点新增gpt-image-2-4K, gpt-image-2-2K模型
