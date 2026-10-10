@@ -1909,7 +1909,7 @@ class Comfly_gpt_image_2_official:
 
     _RESOLUTION_CHOICES = ["1k", "2k", "4k"]
     
-    _MODEL_CHOICES = ["gpt-image-2", "gpt-image-2-vip", "gpt-image-2-4K", "gpt-image-2-2K"]
+    _MODEL_CHOICES = ["gpt-image-2", "gpt-image-2.5-flare", "gpt-image-2.5-sunburst"]
 
     _SIZE_MAP = {
         # 1:1
@@ -1978,38 +1978,6 @@ class Comfly_gpt_image_2_official:
         ("1:2", "4k"): "1920x3840",
     }
 
-    _SIZE_MAP_4K = {
-        "1:1": "2880x2880",
-        "16:9": "3840x2160",
-        "9:16": "2160x3840",
-        "4:3": "3264x2448",
-        "3:4": "2448x3264",
-        "3:2": "3504x2336",
-        "2:3": "2336x3504",
-        "5:4": "3200x2560",
-        "4:5": "2560x3200",
-        "21:9": "3696x1584",
-        "9:21": "1584x3696",
-        "2:1": "3840x1920",
-        "1:2": "1920x3840",
-    }
-
-    _SIZE_MAP_2K = {
-        "1:1": "2048x2048",
-        "16:9": "2560x1440",
-        "9:16": "1440x2560",
-        "4:3": "2304x1728",
-        "3:4": "1728x2304",
-        "3:2": "2496x1664",
-        "2:3": "1664x2496",
-        "5:4": "2240x1792",
-        "4:5": "1792x2240",
-        "21:9": "3024x1296",
-        "9:21": "1296x3024",
-        "2:1": "2688x1344",
-        "1:2": "1344x2688",
-    }
-
     @staticmethod
     def _parse_size_wh(size_str):
         m = re.match(r"^(\d+)x(\d+)$", size_str.strip())
@@ -2047,22 +2015,6 @@ class Comfly_gpt_image_2_official:
         return size, None
 
     @classmethod
-    def _get_size_for_4k_model(cls, aspect_ratio):
-        """根据 aspect_ratio 获取 4K 模型的 size"""
-        size = cls._SIZE_MAP_4K.get(aspect_ratio)
-        if size is None:
-            return None, f"gpt-image-2-4K 模型不支持的比例: {aspect_ratio}。"
-        return size, None
-
-    @classmethod
-    def _get_size_for_2k_model(cls, aspect_ratio):
-        """根据 aspect_ratio 获取 2K 模型的 size"""
-        size = cls._SIZE_MAP_2K.get(aspect_ratio)
-        if size is None:
-            return None, f"gpt-image-2-2K 模型不支持的比例: {aspect_ratio}。"
-        return size, None
-
-    @classmethod
     def INPUT_TYPES(cls):
         return {
             "required": {
@@ -2080,8 +2032,8 @@ class Comfly_gpt_image_2_official:
                 "mask": ("MASK",),
                 "api_key": ("STRING", {"default": ""}),
                 "n": ("INT", {"default": 1, "min": 1, "max": 10}),
-                "quality": (["auto", "high", "medium", "low"], {"default": "auto"}),
-                "background": (["auto", "opaque"], {"default": "auto"}),
+                "quality": (["auto", "high", "medium", "low", "xhigh", "max"], {"default": "auto", "tooltip": "xhigh / max 仅支持 gpt-image-2.5-flare 和 gpt-image-2.5-sunburst"}),
+                "background": (["auto", "opaque", "transparent"], {"default": "auto", "tooltip": "transparent 仅支持 gpt-image-2.5-flare 和 gpt-image-2.5-sunburst"}),
                 "output_format": (["png", "jpeg", "webp"], {"default": "png"}),
                 "output_compression": ("INT", {"default": 100, "min": 0, "max": 100}),
                 "moderation": (["auto", "low"], {"default": "auto"}),
@@ -2236,97 +2188,7 @@ class Comfly_gpt_image_2_official:
             "moderation": moderation,
         }
 
-        if model in ["gpt-image-2-4K", "gpt-image-2-2K"]:
-            pass  
-        else:
-            data["size"] = size
-            
-        if background != "auto":
-            data["background"] = background
-        if output_compression != 100:
-            data["output_compression"] = str(output_compression)
-        if output_format != "png":
-            data["output_format"] = output_format
-
-        if "image[]" in files:
-            request_files = []
-            for file_tuple in files["image[]"]:
-                request_files.append(("image", file_tuple))
-            if "mask" in files:
-                request_files.append(("mask", files["mask"]))
-        else:
-            request_files = []
-            if "image" in files:
-                request_files.append(("image", files["image"]))
-            if "mask" in files:
-                request_files.append(("mask", files["mask"]))
-
-        return data, request_files
-
-    def _build_official_edits_multipart_with_aspect_ratio(
-        self, prompt, image1, image2, image3, image4, image5, mask, n, quality, aspect_ratio, background,
-        output_format, output_compression, moderation, model
-    ):
-
-        input_images = []
-        for img in [image1, image2, image3, image4, image5]:
-            if img is not None:
-                input_images.append(img)
-        
-        if mask is not None and len(input_images) == 0:
-            raise Exception("使用 mask 时必须提供至少一个 input image")
-
-        files = {}
-
-        if len(input_images) == 0:
-            files["image"] = self._blank_input_file()
-            total_images = 1
-        else:
-            image_list = []
-            for img_tensor in input_images:
-                batch_size = img_tensor.shape[0]
-                for i in range(batch_size):
-                    single_image = img_tensor[i : i + 1]
-                    scaled_image = downscale_input(single_image).squeeze()
-                    image_np = (scaled_image.numpy() * 255).astype(np.uint8)
-                    img = Image.fromarray(image_np)
-                    img_byte_arr = io.BytesIO()
-                    img.save(img_byte_arr, format="PNG")
-                    img_byte_arr.seek(0)
-                    image_list.append(("image_{}.png".format(len(image_list)), img_byte_arr, "image/png"))
-            
-            total_images = len(image_list)
-            
-            if total_images == 1:
-                files["image"] = image_list[0]
-            else:
-                files["image[]"] = image_list
-
-        if mask is not None:
-            if total_images != 1:
-                raise Exception("Mask requires exactly one input image")
-            first_img = input_images[0]
-            if mask.shape[1:] != first_img.shape[1:-1]:
-                raise Exception("Mask and Image must be the same size")
-            _batch, height, width = mask.shape
-            rgba_mask = torch.zeros(height, width, 4, device="cpu")
-            rgba_mask[:, :, 3] = 1 - mask.squeeze().cpu()
-            scaled_mask = downscale_input(rgba_mask.unsqueeze(0)).squeeze()
-            mask_np = (scaled_mask.numpy() * 255).astype(np.uint8)
-            mask_img = Image.fromarray(mask_np)
-            mask_byte_arr = io.BytesIO()
-            mask_img.save(mask_byte_arr, format="PNG")
-            mask_byte_arr.seek(0)
-            files["mask"] = ("mask.png", mask_byte_arr, "image/png")
-
-        data = {
-            "prompt": prompt,
-            "model": model, 
-            "n": str(n),
-            "quality": quality,
-            "moderation": moderation,
-            "aspect_ratio": aspect_ratio, 
-        }
+        data["size"] = size
             
         if background != "auto":
             data["background"] = background
@@ -2393,7 +2255,6 @@ class Comfly_gpt_image_2_official:
         n,
         quality,
         size,
-        aspect_ratio,
         background,
         output_format,
         output_compression,
@@ -2403,16 +2264,10 @@ class Comfly_gpt_image_2_official:
         model,
     ):
 
-        if model in ["gpt-image-2-4K", "gpt-image-2-2K"]:
-            data, request_files = self._build_official_edits_multipart_with_aspect_ratio(
-                prompt, image1, image2, image3, image4, image5, mask, n, quality, aspect_ratio, background,
-                output_format, output_compression, moderation, model,
-            )
-        else:
-            data, request_files = self._build_official_edits_multipart(
-                prompt, image1, image2, image3, image4, image5, mask, n, quality, size, background,
-                output_format, output_compression, moderation, model,
-            )
+        data, request_files = self._build_official_edits_multipart(
+            prompt, image1, image2, image3, image4, image5, mask, n, quality, size, background,
+            output_format, output_compression, moderation, model,
+        )
             
         url = f"{baseurl}/v1/images/edits?async=true"
         if webhook.strip():
@@ -2524,19 +2379,13 @@ class Comfly_gpt_image_2_official:
         return out
 
     def _edits(
-        self, prompt, image1, image2, image3, image4, image5, mask, n, quality, size, aspect_ratio, background,
+        self, prompt, image1, image2, image3, image4, image5, mask, n, quality, size, background,
         output_format, output_compression, moderation, max_retries, initial_timeout, pbar, model
     ):
-        if model in ["gpt-image-2-4K", "gpt-image-2-2K"]:
-            data, request_files = self._build_official_edits_multipart_with_aspect_ratio(
-                prompt, image1, image2, image3, image4, image5, mask, n, quality, aspect_ratio, background,
-                output_format, output_compression, moderation, model,
-            )
-        else:
-            data, request_files = self._build_official_edits_multipart(
-                prompt, image1, image2, image3, image4, image5, mask, n, quality, size, background,
-                output_format, output_compression, moderation, model,
-            )
+        data, request_files = self._build_official_edits_multipart(
+            prompt, image1, image2, image3, image4, image5, mask, n, quality, size, background,
+            output_format, output_compression, moderation, model,
+        )
             
         pbar.update_absolute(20)
         response = self.make_request_with_retry(
@@ -2571,18 +2420,18 @@ class Comfly_gpt_image_2_official:
             print(msg)
             return (blank_t, "", msg)
 
-        if model == "gpt-image-2-4K":
-            size, error_msg = self._get_size_for_4k_model(aspect_ratio)
-            resolution_info = "4K (自动根据 aspect_ratio)"
-            print(f"Using gpt-image-2-4K model with aspect_ratio={aspect_ratio}, expected size={size}")
-        elif model == "gpt-image-2-2K":
-            size, error_msg = self._get_size_for_2k_model(aspect_ratio)
-            resolution_info = "2K (自动根据 aspect_ratio)"
-            print(f"Using gpt-image-2-2K model with aspect_ratio={aspect_ratio}, expected size={size}")
-        else:
-            size, error_msg = self._get_size_from_params(aspect_ratio, resolution)
-            resolution_info = resolution
-            print(f"Using {model} model with aspect_ratio={aspect_ratio}, resolution={resolution}, size={size}")
+        if model == "gpt-image-2" and quality in ["xhigh", "max"]:
+            error_msg = f"gpt-image-2 不支持 quality={quality}，请使用 auto / high / medium / low 或切换至 gpt-image-2.5 模型。"
+            print(error_msg)
+            return (blank_t, "", error_msg)
+
+        if model == "gpt-image-2" and background == "transparent":
+            error_msg = "gpt-image-2 不支持 background=transparent，请切换至 gpt-image-2.5 模型。"
+            print(error_msg)
+            return (blank_t, "", error_msg)
+
+        size, error_msg = self._get_size_from_params(aspect_ratio, resolution)
+        print(f"Using {model} model with aspect_ratio={aspect_ratio}, resolution={resolution}, size={size}")
 
         if error_msg:
             print(error_msg)
@@ -2599,11 +2448,8 @@ class Comfly_gpt_image_2_official:
             s += f"Model: {model}\n"
             s += f"Prompt: {prompt}\n"
             s += f"Aspect Ratio: {aspect_ratio}\n"
-            s += f"Resolution: {resolution_info}\n"
-            if model not in ["gpt-image-2-4K", "gpt-image-2-2K"]:
-                s += f"Actual Size: {size}\n"
-            else:
-                s += f"Expected Size: {size} (API 根据 aspect_ratio 自动选择)\n"
+            s += f"Resolution: {resolution}\n"
+            s += f"Actual Size: {size}\n"
             s += f"Quality: {quality}\n"
             s += f"Input Images: {num_input_images}\n"
             w, h = self._parse_size_wh(size)
@@ -2615,11 +2461,10 @@ class Comfly_gpt_image_2_official:
             return s
 
         try:
-            if model not in ["gpt-image-2-4K", "gpt-image-2-2K"]:
-                ok, err_msg = self._validate_gpt_image2_size(size)
-                if not ok:
-                    print(err_msg)
-                    return (blank_t, "", err_msg)
+            ok, err_msg = self._validate_gpt_image2_size(size)
+            if not ok:
+                print(err_msg)
+                return (blank_t, "", err_msg)
 
             if async_mode:
                 combined, image_url, task_id, final_result = self._async_official(
@@ -2637,7 +2482,6 @@ class Comfly_gpt_image_2_official:
                     n,
                     quality,
                     size,
-                    aspect_ratio,
                     background,
                     output_format,
                     output_compression,
@@ -2663,7 +2507,7 @@ class Comfly_gpt_image_2_official:
                 return (combined, image_url or "", info)
 
             result = self._edits(
-                prompt, image1, image2, image3, image4, image5, mask, n, quality, size, aspect_ratio, background,
+                prompt, image1, image2, image3, image4, image5, mask, n, quality, size, background,
                 output_format, output_compression, moderation,
                 max_retries, initial_timeout, pbar, model
             )
