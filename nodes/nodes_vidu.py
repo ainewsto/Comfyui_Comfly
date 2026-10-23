@@ -25,7 +25,8 @@ import concurrent.futures
 import threading
 
 from ..utils import pil2tensor, tensor2pil, ComflyVideoAdapter
-from ..comfly_config import get_config, save_config, baseurl
+from .. import comfly_config
+from ..comfly_config import get_config, save_config
 from comfy.comfy_types import IO
 
 
@@ -287,7 +288,7 @@ class Comfly_vidu_img2video:
             pbar.update_absolute(20)
 
             response = requests.post(
-                f"{baseurl}/vidu/v2/img2video",
+                f"{comfly_config.baseurl}/vidu/v2/img2video",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -323,7 +324,7 @@ class Comfly_vidu_img2video:
                 
                 try:
                     status_response = requests.get(
-                        f"{baseurl}/vidu/v2/tasks/{task_id}/creations",
+                        f"{comfly_config.baseurl}/vidu/v2/tasks/{task_id}/creations",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -476,7 +477,7 @@ class Comfly_vidu_text2video:
             pbar.update_absolute(20)
 
             response = requests.post(
-                f"{baseurl}/vidu/v2/text2video",
+                f"{comfly_config.baseurl}/vidu/v2/text2video",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -512,7 +513,7 @@ class Comfly_vidu_text2video:
                 
                 try:
                     status_response = requests.get(
-                        f"{baseurl}/vidu/v2/tasks/{task_id}/creations",
+                        f"{comfly_config.baseurl}/vidu/v2/tasks/{task_id}/creations",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -741,7 +742,7 @@ class Comfly_vidu_ref2video:
             pbar.update_absolute(20)
 
             response = requests.post(
-                f"{baseurl}/vidu/v2/reference2video",
+                f"{comfly_config.baseurl}/vidu/v2/reference2video",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -777,7 +778,7 @@ class Comfly_vidu_ref2video:
                 
                 try:
                     status_response = requests.get(
-                        f"{baseurl}/vidu/v2/tasks/{task_id}/creations",
+                        f"{comfly_config.baseurl}/vidu/v2/tasks/{task_id}/creations",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -955,7 +956,7 @@ class Comfly_vidu_start_end2video:
             pbar.update_absolute(20)
 
             response = requests.post(
-                f"{baseurl}/vidu/v2/start-end2video",
+                f"{comfly_config.baseurl}/vidu/v2/start-end2video",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -991,7 +992,7 @@ class Comfly_vidu_start_end2video:
                 
                 try:
                     status_response = requests.get(
-                        f"{baseurl}/vidu/v2/tasks/{task_id}/creations",
+                        f"{comfly_config.baseurl}/vidu/v2/tasks/{task_id}/creations",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )

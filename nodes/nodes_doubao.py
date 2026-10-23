@@ -26,7 +26,8 @@ import concurrent.futures
 import threading
 
 from ..utils import pil2tensor, tensor2pil, ComflyVideoAdapter
-from ..comfly_config import get_config, save_config, baseurl
+from .. import comfly_config
+from ..comfly_config import get_config, save_config
 from comfy.comfy_types import IO
 
 
@@ -273,7 +274,7 @@ class Comfly_Doubao_Seedream:
                 payload["seed"] = seed
             
             response = requests.post(
-                f"{baseurl}/v1/images/generations",
+                f"{comfly_config.baseurl}/v1/images/generations",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -529,7 +530,7 @@ class Comfly_Doubao_Seedream_4:
                 payload["image"] = image_urls
             
             response = requests.post(
-                f"{baseurl}/v1/images/generations",
+                f"{comfly_config.baseurl}/v1/images/generations",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -700,7 +701,7 @@ class Comfly_Doubao_Seededit:
                 payload["seed"] = seed
             
             response = requests.post(
-                f"{baseurl}/v1/images/generations",
+                f"{comfly_config.baseurl}/v1/images/generations",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -846,7 +847,7 @@ class ComflyJimengApi:
             files = {'file': ('image.png', file_content, 'image/png')}
 
             response = requests.post(
-                f"{baseurl}/v1/files",
+                f"{comfly_config.baseurl}/v1/files",
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 files=files,
                 timeout=self.timeout
@@ -945,7 +946,7 @@ class ComflyJimengApi:
                     "stream": True
                 }
 
-                api_url = f"{baseurl}/v1/chat/completions"
+                api_url = f"{comfly_config.baseurl}/v1/chat/completions"
                 headers = self.get_headers()
 
                 pbar.update_absolute(30)
@@ -1016,7 +1017,7 @@ class ComflyJimengApi:
                         return (blank_tensor, response_info, "")
             
             else:
-                api_url = f"{baseurl}/volcv/v1?Action=CVProcess&Version=2022-08-31"
+                api_url = f"{comfly_config.baseurl}/volcv/v1?Action=CVProcess&Version=2022-08-31"
                 
                 timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
                 response_info = f"**Jimeng Image Generation Request**\n\n"
@@ -1173,7 +1174,7 @@ class ComflyJimengVideoApi:
             files = {'file': ('image.png', file_content, 'image/png')}
 
             response = requests.post(
-                f"{baseurl}/v1/files",
+                f"{comfly_config.baseurl}/v1/files",
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 files=files,
                 timeout=self.timeout
@@ -1229,7 +1230,7 @@ class ComflyJimengVideoApi:
 
             pbar.update_absolute(30)
             response = requests.post(
-                f"{baseurl}/jimeng/submit/videos",
+                f"{comfly_config.baseurl}/jimeng/submit/videos",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -1274,7 +1275,7 @@ class ComflyJimengVideoApi:
                 
                 try:
                     status_response = requests.get(
-                        f"{baseurl}/jimeng/fetch/{task_id}",
+                        f"{comfly_config.baseurl}/jimeng/fetch/{task_id}",
                         headers=self.get_headers(),
                         timeout=30
                     )
@@ -1457,7 +1458,7 @@ class ComflySeededit:
                 "logo_info": logo_info
             }
 
-            api_url = f"{baseurl}/volcv/v1?Action=CVProcess&Version=2022-08-31"
+            api_url = f"{comfly_config.baseurl}/volcv/v1?Action=CVProcess&Version=2022-08-31"
             
             timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
             response_info = f"**SeedEdit Request**\n\n"
@@ -1624,7 +1625,7 @@ class Comfly_Doubao_Seedance2_0:
         try:
             files = {'file': (filename, file_content, content_type)}
             response = requests.post(
-                f"{baseurl}/v1/files",
+                f"{comfly_config.baseurl}/v1/files",
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 files=files,
                 timeout=self.timeout
@@ -1911,7 +1912,7 @@ class Comfly_Doubao_Seedance2_0:
             print(f"Content: text:1, frames:{frame_count}, ref_images:{ref_count}, videos:{video_count}, audios:{audio_count}")
 
             response = requests.post(
-                f"{baseurl}/seedance/v3/contents/generations/tasks",
+                f"{comfly_config.baseurl}/seedance/v3/contents/generations/tasks",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -1945,7 +1946,7 @@ class Comfly_Doubao_Seedance2_0:
 
                 try:
                     status_response = requests.get(
-                        f"{baseurl}/seedance/v3/contents/generations/tasks/{task_id}",
+                        f"{comfly_config.baseurl}/seedance/v3/contents/generations/tasks/{task_id}",
                         headers={"Authorization": f"Bearer {self.api_key}"},
                         timeout=30
                     )
@@ -2237,7 +2238,7 @@ class Comfly_Doubao_Seedance2_0_Asset:
     def query_asset_status(self, asset_id):
         payload = {"assetId": asset_id}
         response = requests.post(
-            f"{baseurl}/seedance/v3/assets/query",
+            f"{comfly_config.baseurl}/seedance/v3/assets/query",
             headers=self.get_headers(),
             json=payload,
             timeout=self.timeout
@@ -2304,7 +2305,7 @@ class Comfly_Doubao_Seedance2_0_Asset:
             }
 
             response = requests.post(
-                f"{baseurl}/seedance/v3/assets/create",
+                f"{comfly_config.baseurl}/seedance/v3/assets/create",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout

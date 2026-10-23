@@ -25,7 +25,8 @@ import concurrent.futures
 import threading
 
 from ..utils import pil2tensor, tensor2pil, ComflyVideoAdapter
-from ..comfly_config import get_config, save_config, baseurl
+from .. import comfly_config
+from ..comfly_config import get_config, save_config
 from comfy.comfy_types import IO
 
 
@@ -126,7 +127,7 @@ class Comfly_Googel_Veo3:
                     payload["images"] = images_base64
 
             response = requests.post(
-                f"{baseurl}/v2/videos/generations",
+                f"{comfly_config.baseurl}/v2/videos/generations",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -158,7 +159,7 @@ class Comfly_Googel_Veo3:
                 
                 try:
                     status_response = requests.get(
-                        f"{baseurl}/v2/videos/generations/{task_id}",
+                        f"{comfly_config.baseurl}/v2/videos/generations/{task_id}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -283,7 +284,7 @@ class Comfly_nano_banana:
         
         try:
             response = session.post(
-                f"{baseurl}/v1/chat/completions",
+                f"{comfly_config.baseurl}/v1/chat/completions",
                 headers=self.get_headers(),
                 json=payload, 
                 stream=True,
@@ -530,7 +531,7 @@ class Comfly_nano_banana_edit:
                     payload["seed"] = seed
 
                 response = requests.post(
-                    f"{baseurl}/v1/images/generations",
+                    f"{comfly_config.baseurl}/v1/images/generations",
                     headers=headers,
                     json=payload,
                     params=query_params,
@@ -561,7 +562,7 @@ class Comfly_nano_banana_edit:
                     data["seed"] = str(seed)
 
                 response = requests.post(
-                    f"{baseurl}/v1/images/edits",
+                    f"{comfly_config.baseurl}/v1/images/edits",
                     headers=headers,
                     data=data,
                     files=files,
@@ -601,7 +602,7 @@ class Comfly_nano_banana_edit:
                 
                 try:
                     status_response = requests.get(
-                        f"{baseurl}/v1/images/tasks/{task_id}",
+                        f"{comfly_config.baseurl}/v1/images/tasks/{task_id}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -848,7 +849,7 @@ class Comfly_nano_banana2_edit:
                     payload["seed"] = seed
 
                 response = requests.post(
-                    f"{baseurl}/v1/images/generations",
+                    f"{comfly_config.baseurl}/v1/images/generations",
                     headers=headers,
                     json=payload,
                     params=query_params,
@@ -887,7 +888,7 @@ class Comfly_nano_banana2_edit:
                     data["seed"] = str(seed)
 
                 response = requests.post(
-                    f"{baseurl}/v1/images/edits",
+                    f"{comfly_config.baseurl}/v1/images/edits",
                     headers=headers,
                     data=data,
                     files=files,
@@ -927,7 +928,7 @@ class Comfly_nano_banana2_edit:
                 
                 try:
                     status_response = requests.get(
-                        f"{baseurl}/v1/images/tasks/{task_id}",
+                        f"{comfly_config.baseurl}/v1/images/tasks/{task_id}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -1148,7 +1149,7 @@ class ComflyGeminiTextOnly:
             }
 
             response = requests.post(
-                f"{baseurl}/v1/chat/completions",
+                f"{comfly_config.baseurl}/v1/chat/completions",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout

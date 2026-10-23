@@ -25,7 +25,8 @@ import concurrent.futures
 import threading
 
 from ..utils import create_audio_object
-from ..comfly_config import get_config, save_config, baseurl
+from .. import comfly_config
+from ..comfly_config import get_config, save_config
 from comfy.comfy_types import IO
 
 
@@ -97,7 +98,7 @@ class Comfly_suno_description:
             pbar.update_absolute(10)
            
             response = requests.post(
-                f"{baseurl}/suno/generate/description-mode",
+                f"{comfly_config.baseurl}/suno/generate/description-mode",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -148,7 +149,7 @@ class Comfly_suno_description:
                 
                 try:
                     clip_response = requests.get(
-                        f"{baseurl}/suno/feed/{','.join(clip_ids)}",
+                        f"{comfly_config.baseurl}/suno/feed/{','.join(clip_ids)}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -308,7 +309,7 @@ class Comfly_suno_lyrics:
                 payload["seed"] = seed
 
             response = requests.post(
-                f"{baseurl}/suno/generate/lyrics/",
+                f"{comfly_config.baseurl}/suno/generate/lyrics/",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -340,7 +341,7 @@ class Comfly_suno_lyrics:
                 
                 try:
                     lyrics_response = requests.get(
-                        f"{baseurl}/suno/lyrics/{task_id}",
+                        f"{comfly_config.baseurl}/suno/lyrics/{task_id}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -452,7 +453,7 @@ class Comfly_suno_custom:
             pbar.update_absolute(10)
            
             response = requests.post(
-                f"{baseurl}/suno/generate",
+                f"{comfly_config.baseurl}/suno/generate",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -506,7 +507,7 @@ class Comfly_suno_custom:
                 
                 try:
                     clip_response = requests.get(
-                        f"{baseurl}/suno/feed/{','.join(clip_ids)}",
+                        f"{comfly_config.baseurl}/suno/feed/{','.join(clip_ids)}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -662,7 +663,7 @@ class Comfly_suno_upload:
                 payload["seed"] = seed
             
             response = requests.post(
-                f"{baseurl}/suno/uploads/audio",
+                f"{comfly_config.baseurl}/suno/uploads/audio",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -715,7 +716,7 @@ class Comfly_suno_upload:
             }
             
             finish_response = requests.post(
-                f"{baseurl}/suno/uploads/audio/{upload_id}/upload-finish",
+                f"{comfly_config.baseurl}/suno/uploads/audio/{upload_id}/upload-finish",
                 headers=self.get_headers(),
                 json=finish_payload,
                 timeout=self.timeout
@@ -740,7 +741,7 @@ class Comfly_suno_upload:
                 attempts += 1
                 
                 status_response = requests.get(
-                    f"{baseurl}/suno/uploads/audio/{upload_id}",
+                    f"{comfly_config.baseurl}/suno/uploads/audio/{upload_id}",
                     headers=self.get_headers(),
                     timeout=self.timeout
                 )
@@ -755,7 +756,7 @@ class Comfly_suno_upload:
                 
                 if status == "complete":
                     init_response = requests.post(
-                        f"{baseurl}/suno/uploads/audio/{upload_id}/initialize-clip",
+                        f"{comfly_config.baseurl}/suno/uploads/audio/{upload_id}/initialize-clip",
                         headers=self.get_headers(),
                         json={},
                         timeout=self.timeout
@@ -768,7 +769,7 @@ class Comfly_suno_upload:
                         if clip_id:
                             try:
                                 clip_detail_response = requests.get(
-                                    f"{baseurl}/suno/feed/{clip_id}",
+                                    f"{comfly_config.baseurl}/suno/feed/{clip_id}",
                                     headers=self.get_headers(),
                                     timeout=self.timeout
                                 )
@@ -896,7 +897,7 @@ class Comfly_suno_upload_extend:
                 payload["seed"] = seed
 
             response = requests.post(
-                f"{baseurl}/suno/generate",
+                f"{comfly_config.baseurl}/suno/generate",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -940,7 +941,7 @@ class Comfly_suno_upload_extend:
                 
                 try:
                     clip_response = requests.get(
-                        f"{baseurl}/suno/feed/{','.join(clip_ids)}",
+                        f"{comfly_config.baseurl}/suno/feed/{','.join(clip_ids)}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -1131,7 +1132,7 @@ class Comfly_suno_cover:
                 payload["seed"] = seed
            
             response = requests.post(
-                f"{baseurl}/suno/submit/music",
+                f"{comfly_config.baseurl}/suno/submit/music",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -1268,7 +1269,7 @@ class Comfly_suno_cover:
             
             try:
                 status_response = requests.get(
-                    f"{baseurl}/suno/task/{task_id}",
+                    f"{comfly_config.baseurl}/suno/task/{task_id}",
                     headers=self.get_headers(),
                     timeout=self.timeout
                 )
@@ -1284,7 +1285,7 @@ class Comfly_suno_cover:
                         break
 
                 feed_response = requests.get(
-                    f"{baseurl}/suno/feed/{task_id}",
+                    f"{comfly_config.baseurl}/suno/feed/{task_id}",
                     headers=self.get_headers(),
                     timeout=self.timeout
                 )

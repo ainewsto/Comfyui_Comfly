@@ -25,7 +25,8 @@ import concurrent.futures
 import threading
 
 from ..utils import pil2tensor, tensor2pil
-from ..comfly_config import get_config, save_config, baseurl
+from .. import comfly_config
+from ..comfly_config import get_config, save_config
 from comfy.comfy_types import IO
 
 
@@ -127,7 +128,7 @@ class Comfly_qwen_image:
             pbar.update_absolute(30)
             
             response = requests.post(
-                f"{baseurl}/v1/images/generations", 
+                f"{comfly_config.baseurl}/v1/images/generations",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -316,7 +317,7 @@ class Comfly_qwen_image_edit:
             headers = {"Authorization": f"Bearer {self.api_key}"}
             
             response = requests.post(
-                f"{baseurl}/v1/images/edits", 
+                f"{comfly_config.baseurl}/v1/images/edits",
                 headers=headers,
                 files=files,
                 data=data,
@@ -491,7 +492,7 @@ class Comfly_Z_image_turbo:
             pbar.update_absolute(30)
 
             response = requests.post(
-                f"{baseurl}/v1/images/generations",
+                f"{comfly_config.baseurl}/v1/images/generations",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout

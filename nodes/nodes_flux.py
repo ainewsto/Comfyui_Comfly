@@ -25,7 +25,8 @@ import concurrent.futures
 import threading
 
 from ..utils import pil2tensor, tensor2pil
-from ..comfly_config import get_config, save_config, baseurl
+from .. import comfly_config
+from ..comfly_config import get_config, save_config
          
         
 class Comfly_Flux_Kontext_Edit:
@@ -109,7 +110,7 @@ class Comfly_Flux_Kontext_Edit:
 
                 pbar.update_absolute(30)
                 response = requests.post(
-                    f"{baseurl}/v1/images/edits",
+                    f"{comfly_config.baseurl}/v1/images/edits",
                     headers=self.get_headers(),
                     data=data,
                     files=files,
@@ -132,7 +133,7 @@ class Comfly_Flux_Kontext_Edit:
                 headers["Content-Type"] = "application/json"
                 
                 response = requests.post(
-                    f"{baseurl}/v1/images/generations",
+                    f"{comfly_config.baseurl}/v1/images/generations",
                     headers=headers,
                     json=payload,
                     timeout=self.timeout
@@ -277,7 +278,7 @@ class Comfly_Flux_Kontext_bfl:
         pbar = comfy.utils.ProgressBar(100)
         pbar.update_absolute(10)
 
-        api_endpoint = f"{baseurl}/bfl/v1/{model}"
+        api_endpoint = f"{comfly_config.baseurl}/bfl/v1/{model}"
         
         try:
             payload = {
@@ -334,7 +335,7 @@ class Comfly_Flux_Kontext_bfl:
                 
                 try:
                     result_response = requests.get(
-                        f"{baseurl}/bfl/v1/get_result?id={task_id}",
+                        f"{comfly_config.baseurl}/bfl/v1/get_result?id={task_id}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -506,7 +507,7 @@ class Comfly_Flux_2_Pro:
             pbar.update_absolute(20)
 
             response = requests.post(
-                f"{baseurl}/bfl/v1/flux-2-pro",
+                f"{comfly_config.baseurl}/bfl/v1/flux-2-pro",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -541,7 +542,7 @@ class Comfly_Flux_2_Pro:
                 
                 try:
                     result_response = requests.get(
-                        f"{baseurl}/bfl/v1/get_result?id={task_id}",
+                        f"{comfly_config.baseurl}/bfl/v1/get_result?id={task_id}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -725,7 +726,7 @@ class Comfly_Flux_2_Flex:
             pbar.update_absolute(20)
 
             response = requests.post(
-                f"{baseurl}/bfl/v1/flux-2-flex",
+                f"{comfly_config.baseurl}/bfl/v1/flux-2-flex",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -760,7 +761,7 @@ class Comfly_Flux_2_Flex:
                 
                 try:
                     result_response = requests.get(
-                        f"{baseurl}/bfl/v1/get_result?id={task_id}",
+                        f"{comfly_config.baseurl}/bfl/v1/get_result?id={task_id}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -940,7 +941,7 @@ class Comfly_Flux_2_Max:
             pbar.update_absolute(20)
 
             response = requests.post(
-                f"{baseurl}/bfl/v1/flux-2-max",
+                f"{comfly_config.baseurl}/bfl/v1/flux-2-max",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -976,7 +977,7 @@ class Comfly_Flux_2_Max:
                 
                 try:
                     result_response = requests.get(
-                        f"{baseurl}/bfl/v1/get_result?id={task_id}",
+                        f"{comfly_config.baseurl}/bfl/v1/get_result?id={task_id}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )

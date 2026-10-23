@@ -25,20 +25,19 @@ import concurrent.futures
 import threading
 
 from ..utils import pil2tensor, tensor2pil, ComflyVideoAdapter
-from ..comfly_config import get_config, save_config, baseurl
+from .. import comfly_config
+from ..comfly_config import get_config, save_config
 from comfy.comfy_types import IO
 
 
 class ComflyBaseNode:
     def __init__(self):
-        self.midjourney_api_url = {
-            "turbo mode": f"{baseurl}/mj-turbo",
-            "fast mode": f"{baseurl}/mj-fast",
-            "relax mode": f"{baseurl}/mj-relax"
-        }
         self.api_key = get_config().get('api_key', '') 
         self.speed = "fast mode"
         self.timeout = 800
+
+    def get_midjourney_api_url(self):
+        return f"{comfly_config.baseurl}/mj-{self.speed.split()[0]}"
 
     def set_speed(self, speed):
         self.speed = speed
@@ -60,7 +59,7 @@ class ComflyBaseNode:
         }
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/action", headers=headers, json=payload, timeout=self.timeout) as response:
+                async with session.post(f"{self.get_midjourney_api_url()}/mj/submit/action", headers=headers, json=payload, timeout=self.timeout) as response:
                     if response.status == 200:
                         try:
                             data = await response.json()
@@ -144,7 +143,7 @@ class ComflyBaseNode:
         }
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/imagine", headers=headers, json=payload, timeout=self.timeout) as response:
+                async with session.post(f"{self.get_midjourney_api_url()}/mj/submit/imagine", headers=headers, json=payload, timeout=self.timeout) as response:
                     if response.status == 200:
                         try:
                             data = await response.json()
@@ -199,7 +198,7 @@ class ComflyBaseNode:
         }
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.midjourney_api_url[self.speed]}/mj/task/{taskId}/fetch", headers=headers, timeout=self.timeout) as response:
+                async with session.get(f"{self.get_midjourney_api_url()}/mj/task/{taskId}/fetch", headers=headers, timeout=self.timeout) as response:
                     if response.status == 200:
                         try:
                             data = await response.json()
@@ -267,7 +266,7 @@ class Comfly_upload(ComflyBaseNode):
 
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/upload-discord-images", headers=self.get_headers(), json=payload, timeout=self.timeout) as response:
+                async with session.post(f"{self.get_midjourney_api_url()}/mj/submit/upload-discord-images", headers=self.get_headers(), json=payload, timeout=self.timeout) as response:
                     if response.status == 200:
                         try:
                             data = await response.json()
@@ -332,7 +331,7 @@ class Comfly_upload(ComflyBaseNode):
             }
             
             response = requests.post(
-                f"{self.midjourney_api_url[self.speed]}/mj/submit/upload-discord-images",
+                f"{self.get_midjourney_api_url()}/mj/submit/upload-discord-images",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -395,7 +394,7 @@ class Comfly_Mj(ComflyBaseNode):
         return {
             "required": {
                 "text": ("STRING", {"multiline": True}),
-                "speed": (["turbo mode", "fast mode", "relax mode"], {"default": "fast mode"}), 
+                "speed": (["turbo mode", "fast mode", "relax mode"], {"default": "fast mode"}),
             },
             "optional": {
                 "text_en": ("STRING", {"multiline": True, "default": ""}),
@@ -571,9 +570,9 @@ class Comfly_Mj(ComflyBaseNode):
         }
         try:
             response = requests.post(
-                f"{self.midjourney_api_url[self.speed]}/mj/submit/imagine", 
-                headers=headers, 
-                json=payload, 
+                f"{self.get_midjourney_api_url()}/mj/submit/imagine",
+                headers=headers,
+                json=payload,
                 timeout=self.timeout
             )
             
@@ -614,7 +613,7 @@ class Comfly_Mj(ComflyBaseNode):
         }
         try:
             response = requests.get(
-                f"{self.midjourney_api_url[self.speed]}/mj/task/{taskId}/fetch",
+                f"{self.get_midjourney_api_url()}/mj/task/{taskId}/fetch",
                 headers=headers,
                 timeout=self.timeout
             )
@@ -933,7 +932,7 @@ class Comfly_Mju(ComflyBaseNode):
         }
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/action", headers=headers, json=payload, timeout=self.timeout) as response:
+                async with session.post(f"{self.get_midjourney_api_url()}/mj/submit/action", headers=headers, json=payload, timeout=self.timeout) as response:
                     if response.status == 200:
                         try:
                             data = await response.json()
@@ -988,7 +987,7 @@ class Comfly_Mju(ComflyBaseNode):
         }
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.midjourney_api_url[self.speed]}/mj/task/{taskId}/fetch", headers=headers, timeout=self.timeout) as response:
+                async with session.get(f"{self.get_midjourney_api_url()}/mj/task/{taskId}/fetch", headers=headers, timeout=self.timeout) as response:
                     if response.status == 200:
                         try:
                             data = await response.json()
@@ -1046,7 +1045,7 @@ class Comfly_Mju(ComflyBaseNode):
         }
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/imagine", headers=headers, json=payload, timeout=self.timeout) as response:
+                async with session.post(f"{self.get_midjourney_api_url()}/mj/submit/imagine", headers=headers, json=payload, timeout=self.timeout) as response:
                     if response.status == 200:
                         try:
                             data = await response.json()
@@ -1101,7 +1100,7 @@ class Comfly_Mju(ComflyBaseNode):
         }
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.midjourney_api_url[self.speed]}/mj/task/{taskId}/fetch", headers=headers, timeout=self.timeout) as response:
+                async with session.get(f"{self.get_midjourney_api_url()}/mj/task/{taskId}/fetch", headers=headers, timeout=self.timeout) as response:
                     if response.status == 200:
                         try:
                             data = await response.json()
@@ -1359,7 +1358,7 @@ class Comfly_Mjv(ComflyBaseNode):
         }
         
         async with aiohttp.ClientSession() as session:
-            async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/action", headers=headers, json=payload) as response: 
+            async with session.post(f"{self.get_midjourney_api_url()}/mj/submit/action", headers=headers, json=payload) as response:
                 if response.status == 200:
                     try:
                         data = await response.json()
@@ -1396,7 +1395,7 @@ class Comfly_Mjv(ComflyBaseNode):
             payload["maskBase64"] = maskBase64
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(f"{self.midjourney_api_url[self.speed]}/mj/submit/modal", headers=headers, json=payload) as response:
+            async with session.post(f"{self.get_midjourney_api_url()}/mj/submit/modal", headers=headers, json=payload) as response:
                 if response.status == 200:
                     data = await response.json()
                     return data
@@ -1412,7 +1411,7 @@ class Comfly_Mjv(ComflyBaseNode):
         }
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(f"{self.midjourney_api_url[self.speed]}/mj/task/{taskId}/fetch", headers=headers, timeout=self.timeout) as response:
+                async with session.get(f"{self.get_midjourney_api_url()}/mj/task/{taskId}/fetch", headers=headers, timeout=self.timeout) as response:
                     if response.status == 200:
                         try:
                             data = await response.json()
@@ -1486,7 +1485,7 @@ class Comfly_Mj_swap_face(ComflyBaseNode):
         """Fetch task result by task_id"""
         try:
             response = requests.get(
-                f"{baseurl}/mj/task/{task_id}/fetch",
+                f"{comfly_config.baseurl}/mj/task/{task_id}/fetch",
                 headers=self.get_headers(),
                 timeout=self.timeout
             )
@@ -1529,7 +1528,7 @@ class Comfly_Mj_swap_face(ComflyBaseNode):
 
             print("Sending request to face swap API...")
             response = requests.post(
-                f"{baseurl}/mj/insight-face/swap",
+                f"{comfly_config.baseurl}/mj/insight-face/swap",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -1776,7 +1775,7 @@ class Comfly_mj_video(ComflyBaseNode):
             print("Submitting video generation request...")
             try:
                 response = requests.post(
-                    f"{baseurl}/mj/submit/video", 
+                    f"{comfly_config.baseurl}/mj/submit/video",
                     headers=self.get_headers(),
                     json=payload,
                     timeout=(30, 90)  
@@ -1801,7 +1800,7 @@ class Comfly_mj_video(ComflyBaseNode):
                 error_message = f"No task ID in response: {result}"
                 print(error_message)
                 error_response = json.dumps({
-                    "status": "error", 
+                    "status": "error",
                     "message": error_message
                 })
                 empty_adapters = [ComflyVideoAdapter("") for _ in range(4)]
@@ -1820,7 +1819,7 @@ class Comfly_mj_video(ComflyBaseNode):
             while retry_count < max_retries:
                 try:
                     status_response = requests.get(
-                        f"{baseurl}/mj/task/{task_id}/fetch",
+                        f"{comfly_config.baseurl}/mj/task/{task_id}/fetch",
                         headers=self.get_headers(),
                         timeout=(10, 30)  
                     )
@@ -1833,7 +1832,7 @@ class Comfly_mj_video(ComflyBaseNode):
                         error_message = f"Video generation failed: {fail_reason}"
                         print(error_message)
                         error_response = json.dumps({
-                            "status": "error", 
+                            "status": "error",
                             "message": error_message
                         })
                         empty_adapters = [ComflyVideoAdapter("") for _ in range(4)]
@@ -1969,7 +1968,7 @@ class Comfly_mj_video_extend(ComflyBaseNode):
             print("Submitting video extension request...")
 
             response = requests.post(
-                f"{baseurl}/mj/submit/video",
+                f"{comfly_config.baseurl}/mj/submit/video",
                 headers=self.get_headers(),
                 json=payload
             )
@@ -1998,7 +1997,7 @@ class Comfly_mj_video_extend(ComflyBaseNode):
             while True:
                 try:
                     status_response = requests.get(
-                        f"{baseurl}/mj/task/{new_task_id}/fetch",
+                        f"{comfly_config.baseurl}/mj/task/{new_task_id}/fetch",
                         headers=self.get_headers()
                     )
                     

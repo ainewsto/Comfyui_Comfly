@@ -25,7 +25,8 @@ import concurrent.futures
 import threading
 
 from ..utils import pil2tensor, tensor2pil, ComflyVideoAdapter
-from ..comfly_config import get_config, save_config, baseurl
+from .. import comfly_config
+from ..comfly_config import get_config, save_config
 from comfy.comfy_types import IO
 from comfy.utils import common_upscale
 
@@ -278,7 +279,7 @@ class Comfly_gpt_image_edit:
                         image_files.append(('mask', files['mask']))
 
                     response = self.make_request_with_retry(
-                        f"{baseurl}/v1/images/edits",
+                        f"{comfly_config.baseurl}/v1/images/edits",
                         data=data,
                         files=image_files,
                         max_retries=max_retries,
@@ -292,7 +293,7 @@ class Comfly_gpt_image_edit:
                         request_files.append(('mask', files['mask']))
 
                     response = self.make_request_with_retry(
-                        f"{baseurl}/v1/images/edits",
+                        f"{comfly_config.baseurl}/v1/images/edits",
                         data=data,
                         files=request_files,
                         max_retries=max_retries,
@@ -476,7 +477,7 @@ class Comfly_gpt_image:
                 payload["size"] = size
             
             response = requests.post(
-                f"{baseurl}/v1/images/generations",
+                f"{comfly_config.baseurl}/v1/images/generations",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -609,7 +610,6 @@ class ComflyChatGPTApi:
         self.api_key = get_config().get('api_key', '')
         self.timeout = 800
         self.image_download_timeout = 600
-        self.api_endpoint = f"{baseurl}/v1/chat/completions"
         self.conversation_history = []
  
     def get_headers(self):
@@ -707,7 +707,7 @@ class ComflyChatGPTApi:
         
         try:
             response = session.post(
-                self.api_endpoint,
+                f"{comfly_config.baseurl}/v1/chat/completions",
                 headers=self.get_headers(),
                 json=payload, 
                 stream=True,
@@ -1036,7 +1036,7 @@ class Comfly_sora2:
                 if seed > 0:
                     payload["seed"] = seed
                 
-                endpoint = f"{baseurl}/v2/videos/generations"
+                endpoint = f"{comfly_config.baseurl}/v2/videos/generations"
             else:
                 payload = {
                     "prompt": prompt,
@@ -1050,7 +1050,7 @@ class Comfly_sora2:
                 if seed > 0:
                     payload["seed"] = seed
                     
-                endpoint = f"{baseurl}/v2/videos/generations"
+                endpoint = f"{comfly_config.baseurl}/v2/videos/generations"
             
             pbar.update_absolute(20)
             
@@ -1087,7 +1087,7 @@ class Comfly_sora2:
                 
                 try:
                     status_response = requests.get(
-                        f"{baseurl}/v2/videos/generations/{task_id}",
+                        f"{comfly_config.baseurl}/v2/videos/generations/{task_id}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -1246,7 +1246,7 @@ class Comfly_sora2_character:
             print(f"Sending character creation request with payload: {json.dumps(payload)}")
 
             response = requests.post(
-                f"{baseurl}/sora/v1/characters",
+                f"{comfly_config.baseurl}/sora/v1/characters",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -1757,7 +1757,7 @@ class Comfly_gpt_image_2:
             if images_list:
                 payload["image"] = images_list
 
-            url = f"{baseurl}/v1/images/generations?async=true"
+            url = f"{comfly_config.baseurl}/v1/images/generations?async=true"
             if webhook.strip():
                 url += f"&webhook={webhook.strip()}"
 
@@ -1789,7 +1789,7 @@ class Comfly_gpt_image_2:
             print(f"Task submitted. Task ID: {task_id}")
             pbar.update_absolute(20)
 
-            query_url = f"{baseurl}/v1/images/tasks/{task_id}"
+            query_url = f"{comfly_config.baseurl}/v1/images/tasks/{task_id}"
             attempts = 0
             image_url = ""
             b64_json = ""
@@ -2269,7 +2269,7 @@ class Comfly_gpt_image_2_official:
             output_format, output_compression, moderation, model,
         )
             
-        url = f"{baseurl}/v1/images/edits?async=true"
+        url = f"{comfly_config.baseurl}/v1/images/edits?async=true"
         if webhook.strip():
             url += f"&webhook={webhook.strip()}"
 
@@ -2292,7 +2292,7 @@ class Comfly_gpt_image_2_official:
         print(f"Task submitted. Task ID: {task_id}")
         pbar.update_absolute(20)
 
-        query_url = f"{baseurl}/v1/images/tasks/{task_id}"
+        query_url = f"{comfly_config.baseurl}/v1/images/tasks/{task_id}"
         final_result = None
         image_url_first = ""
 
@@ -2389,7 +2389,7 @@ class Comfly_gpt_image_2_official:
             
         pbar.update_absolute(20)
         response = self.make_request_with_retry(
-            f"{baseurl}/v1/images/edits",
+            f"{comfly_config.baseurl}/v1/images/edits",
             data=data,
             files=request_files,
             max_retries=max_retries,

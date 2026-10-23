@@ -25,7 +25,8 @@ import concurrent.futures
 import threading
 
 from ..utils import pil2tensor, tensor2pil, ComflyVideoAdapter, create_audio_object
-from ..comfly_config import get_config, save_config, baseurl
+from .. import comfly_config
+from ..comfly_config import get_config, save_config
 from comfy.comfy_types import IO
 
 
@@ -58,8 +59,6 @@ class Comfly_MiniMax_video:
     def __init__(self):
         self.api_key = get_config().get('api_key', '')
         self.timeout = 600
-        self.api_endpoint = f"{baseurl}/minimax/v1/video_generation"
-        self.query_endpoint = f"{baseurl}/minimax/v1/query/video_generation"
 
     def get_headers(self):
         return {
@@ -140,7 +139,7 @@ class Comfly_MiniMax_video:
                     }
             
             response = requests.post(
-                self.api_endpoint,
+                f"{comfly_config.baseurl}/minimax/v1/video_generation",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -180,7 +179,7 @@ class Comfly_MiniMax_video:
                 
                 try:
                     status_response = requests.get(
-                        f"{self.query_endpoint}?task_id={task_id}",
+                        f"{comfly_config.baseurl}/minimax/v1/query/video_generation?task_id={task_id}",
                         headers=self.get_headers(),
                         timeout=self.timeout
                     )
@@ -203,7 +202,7 @@ class Comfly_MiniMax_video:
                     if status == "Success":
                         file_id = status_result.get("file_id")
                         if file_id:
-                            video_retrieval_url = f"{baseurl}/minimax/v1/files/retrieve?file_id={file_id}"
+                            video_retrieval_url = f"{comfly_config.baseurl}/minimax/v1/files/retrieve?file_id={file_id}"
                             file_response = requests.get(
                                 video_retrieval_url,
                                 headers=self.get_headers(),
@@ -216,10 +215,10 @@ class Comfly_MiniMax_video:
                                     video_url = file_data["file"]["download_url"]
                                     break
                                 else:
-                                    video_url = f"{baseurl}/minimax/v1/file?file_id={file_id}"
+                                    video_url = f"{comfly_config.baseurl}/minimax/v1/file?file_id={file_id}"
                                     break
                             else:
-                                video_url = f"{baseurl}/minimax/v1/file?file_id={file_id}"
+                                video_url = f"{comfly_config.baseurl}/minimax/v1/file?file_id={file_id}"
                                 break
                     elif status == "Failed":
                         error_message = f"Video generation failed: {status_result.get('base_resp', {}).get('status_msg', 'Unknown error')}"
@@ -235,7 +234,7 @@ class Comfly_MiniMax_video:
                 return (None, task_id, json.dumps({"status": "error", "message": error_message}))
                 
             if not video_url:
-                video_url = f"{baseurl}/minimax/v1/file?file_id={file_id}"
+                video_url = f"{comfly_config.baseurl}/minimax/v1/file?file_id={file_id}"
             
             pbar.update_absolute(90)
             print(f"Video generation completed. URL: {video_url}")

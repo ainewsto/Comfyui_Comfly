@@ -25,7 +25,8 @@ import concurrent.futures
 import threading
 
 from ..utils import pil2tensor, tensor2pil, ComflyVideoAdapter
-from ..comfly_config import get_config, save_config, baseurl
+from .. import comfly_config
+from ..comfly_config import get_config, save_config
 from comfy.comfy_types import IO
 
 
@@ -166,7 +167,7 @@ class Comfly_kling_text2video:
         try:
             pbar = comfy.utils.ProgressBar(100)  
             response = requests.post(
-                f"{baseurl}/kling/v1/videos/text2video",
+                f"{comfly_config.baseurl}/kling/v1/videos/text2video",
                 headers=self.get_headers(),
                 json=payload
             )
@@ -183,7 +184,7 @@ class Comfly_kling_text2video:
             while True:
                 time.sleep(2)
                 status_response = requests.get(
-                    f"{baseurl}/kling/v1/videos/text2video/{task_id}",
+                    f"{comfly_config.baseurl}/kling/v1/videos/text2video/{task_id}",
                     headers=self.get_headers()
                 )
                 status_response.raise_for_status()
@@ -379,7 +380,7 @@ class Comfly_kling_image2video:
             pbar = comfy.utils.ProgressBar(100)
             pbar.update_absolute(5)  
             response = requests.post(
-                f"{baseurl}/kling/v1/videos/image2video",
+                f"{comfly_config.baseurl}/kling/v1/videos/image2video",
                 headers=self.get_headers(),
                 json=payload,
                 timeout=self.timeout
@@ -404,7 +405,7 @@ class Comfly_kling_image2video:
             while True:
                 time.sleep(2)
                 status_response = requests.get(
-                    f"{baseurl}/kling/v1/videos/image2video/{task_id}",
+                    f"{comfly_config.baseurl}/kling/v1/videos/image2video/{task_id}",
                     headers=self.get_headers(),
                     timeout=self.timeout
                 )
@@ -584,7 +585,7 @@ class Comfly_kling_multi_image2video:
             try:
                 status_response = self.make_request_with_retry(
                     'get',
-                    f"{baseurl}/kling/v1/videos/multi-image2video/{task_id}",
+                    f"{comfly_config.baseurl}/kling/v1/videos/multi-image2video/{task_id}",
                     headers=headers
                 )
                 
@@ -675,7 +676,7 @@ class Comfly_kling_multi_image2video:
             print("Submitting multi-image video generation request...")
             response = self.make_request_with_retry(
                 'post',
-                f"{baseurl}/kling/v1/videos/multi-image2video",
+                f"{comfly_config.baseurl}/kling/v1/videos/multi-image2video",
                 headers=headers,
                 json=payload,
                 max_retries=max_retries,
@@ -787,7 +788,7 @@ class Comfly_video_extend:
         }
         try:
             response = requests.post(
-                f"{baseurl}/kling/v1/videos/video-extend",
+                f"{comfly_config.baseurl}/kling/v1/videos/video-extend",
                 headers=headers,
                 json=payload,
                 timeout=self.timeout
@@ -805,7 +806,7 @@ class Comfly_video_extend:
             while True:
                 time.sleep(2)
                 status_response = requests.get(
-                    f"{baseurl}/kling/v1/videos/video-extend/{task_id}",
+                    f"{comfly_config.baseurl}/kling/v1/videos/video-extend/{task_id}",
                     headers=headers,
                     timeout=self.timeout
                 )
@@ -993,7 +994,7 @@ class Comfly_lip_sync:
             pbar = comfy.utils.ProgressBar(100)
             pbar.update_absolute(5)  
             response = requests.post(
-                f"{baseurl}/kling/v1/videos/lip-sync",
+                f"{comfly_config.baseurl}/kling/v1/videos/lip-sync",
                 headers=headers,
                 json=payload,
                 timeout=self.timeout
@@ -1011,7 +1012,7 @@ class Comfly_lip_sync:
             while True:
                 time.sleep(2)
                 status_response = requests.get(
-                    f"{baseurl}/kling/v1/videos/lip-sync/{task_id}",
+                    f"{comfly_config.baseurl}/kling/v1/videos/lip-sync/{task_id}",
                     headers=headers,
                     timeout=self.timeout
                 )
